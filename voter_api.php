@@ -118,7 +118,7 @@ function unipesaPost(string $endpoint, array $payload, int $timeout=15): array {
 
 /* ===== VERIFS METIER LME ===== */
 function checkConcours(PDO $pdo, int $concours_id): array {
-    $stmt=$pdo->prepare("SELECT etat_concours, date_ouverture, date_cloture, arret_manuel FROM concours WHERE concours_id=?");
+    $stmt=$pdo->prepare("SELECT site_id, etat_concours, date_ouverture, date_cloture, arret_manuel FROM concours WHERE concours_id=?");
     $stmt->execute([$concours_id]);
     $c=$stmt->fetch();
     if(!$c) return ['success'=>false,'message'=>'Concours introuvable.'];
@@ -127,7 +127,7 @@ function checkConcours(PDO $pdo, int $concours_id): array {
     $now=time(); $d=strtotime($c['date_ouverture']); $f=strtotime($c['date_cloture']);
     if($now<$d) return ['success'=>false,'message'=>'Concours pas encore ouvert.'];
     if($now>$f) return ['success'=>false,'message'=>'Concours terminé.'];
-    return ['success'=>true];
+    return ['success'=>true,'site_id'=>$c['site_id']];
 }
 function checkOffre(PDO $pdo, int $offre_id, int $concours_id): array {
     $stmt=$pdo->prepare("SELECT offre_id, nombre_votes_inclus, prix, devise, offre_visible FROM offres_votes WHERE offre_id=? AND concours_id=?");
@@ -233,6 +233,17 @@ if($action==='initiate_payment'){
     $pdo=getDB();
     $chk=checkConcours($pdo,$concoursId);
     if(!$chk['success']){ echo json_encode(['success'=>false,'message'=>$chk['message']]); exit; }
+    $siteId=$chk['site_id'] ?? null;
+    if(!$siteId){
+        // fallback: récupère site_id depuis concours si checkConcours n'a pas retourné
+        $stmtSid=$pdo->prepare("SELECT site_id FROM concours WHERE concours_id=?");
+        $stmtSid->execute([$concoursId]);
+        $siteId=$stmtSid->fetchColumn();
+    }
+    if(!$siteId){
+        echo json_encode(['success'=>false,'message'=>'Site non trouvé pour ce concours (site_id manquant).']); exit;
+    }
+
     $chkOff=checkOffre($pdo,$offreId,$concoursId);
     if(!$chkOff['success']){ echo json_encode(['success'=>false,'message'=>$chkOff['message']]); exit; }
     $offreData=$chkOff['data'];
@@ -249,8 +260,10 @@ if($action==='initiate_payment'){
 
     $reference=$lienUnique.'-'.date('YmdHis').'-'.strtoupper(substr(bin2hex(random_bytes(3)),0,6));
 
-    $pdo->prepare("INSERT INTO transactions_votes (numero_reference, concours_id, participante_id, etape_id, moyen_paiement, numero_telephone, email_votant, montant_paye, devise, votes_accordes, etat_paiement, initie_le, message_retour) VALUES (:ref,:cid,:pid,:eid,:meth,:tel,'',:montant,:devise,:votes,:etat,NOW(),'')")
+    // FIX CRITIQUE: inclusion de site_id qui était NULL avant (cause du bug constaté dans phpMyAdmin)
+    $pdo->prepare("INSERT INTO transactions_votes (site_id, numero_reference, concours_id, participante_id, etape_id, moyen_paiement, numero_telephone, email_votant, montant_paye, devise, votes_accordes, etat_paiement, initie_le, message_retour) VALUES (:sid,:ref,:cid,:pid,:eid,:meth,:tel,'',:montant,:devise,:votes,:etat,NOW(),'')")
         ->execute([
+            ':sid'=>$siteId,
             ':ref'=>$reference,
             ':cid'=>$concoursId,
             ':pid'=>$participanteId,
