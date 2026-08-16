@@ -195,69 +195,6 @@ if ($concoursId > 0) {
 }
 $totalSlides = count($heroCandidates);
 
-// ========== Gestion des requêtes AJAX (votes_data) ==========
-if (isset($_GET['ajax']) && $_GET['ajax'] === 'votes_data') {
-    header('Content-Type: application/json');
-    $ajaxConcoursId = isset($_GET['concours_id']) ? (int)$_GET['concours_id'] : $concoursId;
-    if ($ajaxConcoursId > 0) {
-        $stmtRank = $pdo->prepare("
-            SELECT p.participante_id, p.code_participante, p.nom_complet,
-                   COALESCE(SUM(t.votes_accordes), 0) AS total_votes
-            FROM participantes p
-            LEFT JOIN transactions_votes t ON p.participante_id = t.participante_id
-                AND t.etat_paiement = 'confirme'
-            WHERE p.concours_id = ? 
-            AND p.situation_actuelle = 'active'
-            AND EXISTS (
-                SELECT 1 
-                FROM parcours_participantes pp
-                JOIN etapes_du_concours e ON pp.etape_id = e.etape_id
-                WHERE pp.participante_id = p.participante_id
-                  AND e.etape_terminee = 0
-            )
-            GROUP BY p.participante_id
-            ORDER BY total_votes DESC
-        ");
-        $stmtRank->execute([$ajaxConcoursId]);
-        $ranking = $stmtRank->fetchAll();
-        $totalVotesAllAjax = 0;
-        foreach ($ranking as $r) $totalVotesAllAjax += $r['total_votes'];
-        if ($totalVotesAllAjax == 0) $totalVotesAllAjax = 1;
-        $stmtLatest = $pdo->prepare("
-            SELECT t.transaction_id, t.participante_id, t.votes_accordes, t.confirme_le,
-                   t.numero_telephone, p.nom_complet, p.code_participante
-            FROM transactions_votes t
-            JOIN participantes p ON t.participante_id = p.participante_id
-            WHERE t.etat_paiement = 'confirme' 
-            AND p.concours_id = ?
-            AND EXISTS (
-                SELECT 1 
-                FROM parcours_participantes pp
-                JOIN etapes_du_concours e ON pp.etape_id = e.etape_id
-                WHERE pp.participante_id = p.participante_id
-                  AND e.etape_terminee = 0
-            )
-            ORDER BY t.confirme_le DESC
-            LIMIT 20
-        ");
-        $stmtLatest->execute([$ajaxConcoursId]);
-        $latestVotes = $stmtLatest->fetchAll();
-        foreach ($latestVotes as &$vote) {
-            $tel = $vote['numero_telephone'] ?? '';
-            if (strlen($tel) >= 8) {
-                $vote['telephone_masked'] = substr($tel, 0, 4) . '****' . substr($tel, -2);
-            } else {
-                $vote['telephone_masked'] = '****';
-            }
-            $vote['date_fr'] = $vote['confirme_le'] ? date('d/m H:i', strtotime($vote['confirme_le'])) : '-';
-        }
-        unset($vote);
-        echo json_encode(['ranking' => $ranking, 'totalVotesAll' => $totalVotesAllAjax, 'latestVotes' => $latestVotes]);
-    } else {
-        echo json_encode(['ranking' => [], 'totalVotesAll' => 0, 'latestVotes' => []]);
-    }
-    exit;
-}
 function esc($s) { return htmlspecialchars((string)($s ?? ''), ENT_QUOTES, 'UTF-8'); }
 function getCandidatePhotoUrl($photo_officielle) {
     if (empty($photo_officielle)) return '';
@@ -275,6 +212,90 @@ function getCandidatePhotoUrl($photo_officielle) {
 }
 $auroraYear = '2026';
 $auroraTitle = 'MISS AURORA RDC';
+
+// ========== Gestion des requêtes AJAX (votes_data) ==========
+if (isset($_GET['ajax']) && $_GET['ajax'] === 'votes_data') {
+    header('Content-Type: application/json');
+    $ajaxConcoursId = isset($_GET['concours_id']) ? (int)$_GET['concours_id'] : $concoursId;
+    $periode = $_GET['periode'] ?? $_GET['period'] ?? 'global';
+    $allowedPeriods = ['jour','today','semaine','week','mois','month','global','total'];
+    if(!in_array($periode,$allowedPeriods)) $periode='global';
+    // normalize
+    if($periode==='today') $periode='jour';
+    if($periode==='week') $periode='semaine';
+    if($periode==='month') $periode='mois';
+    if($periode==='total') $periode='global';
+
+    $dateCond = '';
+    switch($periode){
+        case 'jour': $dateCond = "AND DATE(t.confirme_le)=CURDATE()"; break;
+        case 'semaine': $dateCond = "AND YEARWEEK(t.confirme_le,1)=YEARWEEK(CURDATE(),1)"; break;
+        case 'mois': $dateCond = "AND MONTH(t.confirme_le)=MONTH(CURDATE()) AND YEAR(t.confirme_le)=YEAR(CURDATE())"; break;
+        default: $dateCond='';
+    }
+
+    if ($ajaxConcoursId > 0) {
+        $stmtRank = $pdo->prepare("
+            SELECT p.participante_id, p.code_participante, p.nom_complet, p.ville_origine,
+                   (SELECT m.photo_officielle FROM medias_participantes m WHERE m.participante_id=p.participante_id ORDER BY m.est_photo_principale DESC, m.ajoute_le DESC LIMIT 1) AS photo_officielle,
+                   COALESCE(SUM(t.votes_accordes), 0) AS total_votes
+            FROM participantes p
+            LEFT JOIN transactions_votes t ON p.participante_id = t.participante_id
+                AND t.etat_paiement = 'confirme'
+                $dateCond
+            WHERE p.concours_id = ?
+            AND p.situation_actuelle = 'active'
+            AND EXISTS (
+                SELECT 1 FROM parcours_participantes pp JOIN etapes_du_concours e ON pp.etape_id=e.etape_id WHERE pp.participante_id=p.participante_id AND e.etape_terminee=0
+            )
+            GROUP BY p.participante_id
+            ORDER BY total_votes DESC, p.nom_complet ASC
+        ");
+        $stmtRank->execute([$ajaxConcoursId]);
+        $ranking = $stmtRank->fetchAll();
+        // enrichir avec photo URL
+        foreach($ranking as &$r){
+            $r['photo_url'] = getCandidatePhotoUrl($r['photo_officielle'] ?? '');
+            if(empty($r['photo_url'])) $r['photo_url']='https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=400&h=500&fit=crop';
+        }
+        unset($r);
+        $totalVotesAllAjax = 0;
+        foreach ($ranking as $rr) $totalVotesAllAjax += $rr['total_votes'];
+        if ($totalVotesAllAjax == 0) $totalVotesAllAjax = 1;
+        $stmtLatest = $pdo->prepare("
+            SELECT t.transaction_id, t.participante_id, t.votes_accordes, t.confirme_le,
+                   t.numero_telephone, p.nom_complet, p.code_participante
+            FROM transactions_votes t
+            JOIN participantes p ON t.participante_id = p.participante_id
+            WHERE t.etat_paiement = 'confirme'
+            AND p.concours_id = ?
+            $dateCond
+            AND EXISTS (
+                SELECT 1 FROM parcours_participantes pp JOIN etapes_du_concours e ON pp.etape_id=e.etape_id WHERE pp.participante_id=p.participante_id AND e.etape_terminee=0
+            )
+            ORDER BY t.confirme_le DESC
+            LIMIT 20
+        ");
+        $stmtLatest->execute([$ajaxConcoursId]);
+        $latestVotes = $stmtLatest->fetchAll();
+        foreach ($latestVotes as &$vote) {
+            $tel = $vote['numero_telephone'] ?? '';
+            if (strlen($tel) >= 8) {
+                $vote['telephone_masked'] = substr($tel, 0, 4) . '****' . substr($tel, -2);
+            } else {
+                $vote['telephone_masked'] = '****';
+            }
+            $vote['date_fr'] = $vote['confirme_le'] ? date('d/m H:i', strtotime($vote['confirme_le'])) : '-';
+        }
+        unset($vote);
+        echo json_encode(['ranking' => $ranking, 'totalVotesAll' => $totalVotesAllAjax, 'latestVotes' => $latestVotes, 'periode'=>$periode]);
+    } else {
+        echo json_encode(['ranking' => [], 'totalVotesAll' => 0, 'latestVotes' => [], 'periode'=>$periode]);
+    }
+    exit;
+}
+$auroraTitle = 'MISS AURORA RDC';
+
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -1041,7 +1062,7 @@ button{font-family:inherit}
 .candidate-card__city{position:absolute;bottom:10px;left:10px;z-index:2;display:flex;align-items:center;gap:4px;color:rgba(255,255,255,.92);font-size:.64rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
 .candidate-card__tag{position:absolute;top:10px;right:10px;z-index:2;padding:3px 8px;border-radius:999px;background:rgba(7,26,61,.72);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.14);color:#fff;font-size:.58rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;opacity:0;transform:translateY(-4px);transition:all .25s}
 .candidate-card:hover .candidate-card__tag{opacity:1;transform:translateY(0)}
-.candidate-card__body{padding:14px 14px 14px;display:flex;flex-direction:column;gap:10px;flex:1}
+.candidate-card__body{padding:14px;display:flex;flex-direction:column;gap:9px;flex:1;min-height:0}.candidate-card__name{flex:0 0 auto}.candidate-card__share{flex:0 0 auto}.candidate-card__details{flex:0 0 auto}.candidate-card__stats{flex:1 0 auto;display:flex;flex-direction:column;justify-content:flex-end;gap:8px}.candidate-card__actions{margin-top:auto}
 .candidate-card__name{font-family:var(--font-serif);font-size:1.18rem;font-weight:700;line-height:1.15;color:var(--royal-900)}
 .candidate-card__share{display:flex;align-items:center;gap:6px}
 .candidate-card__share-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:100px;background:rgba(212,175,55,.12);border:1px solid rgba(212,175,55,.18);color:var(--royal-800);font-size:.64rem;font-weight:700;cursor:pointer;transition:all .2s}
@@ -1071,13 +1092,49 @@ button{font-family:inherit}
 .candidates-footer__count::after{background:linear-gradient(90deg, var(--gold), transparent)}
 @media(max-width:1200px){.candidates-grid{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:820px){.candidates-grid{grid-template-columns:repeat(2,1fr);gap:14px}}
-@media(max-width:480px){.candidates-grid{grid-template-columns:repeat(2,1fr);gap:10px}.candidate-card__body{padding:10px}.candidate-card__name{font-size:.96rem}.candidate-card__detail{font-size:.68rem}}
+@media(max-width:480px){
+  .candidates-grid{grid-template-columns:repeat(2, minmax(0,1fr));gap:8px}
+  .candidate-card{border-radius:14px;box-shadow:0 4px 16px rgba(5,11,22,.06)}
+  .candidate-card__photo{aspect-ratio:3/3.8}
+  .candidate-card__num{top:8px;left:8px;padding:3px 7px;font-size:.58rem}
+  .candidate-card__city{bottom:8px;left:8px;font-size:.56rem;gap:3px}
+  .candidate-card__tag{display:none}
+  .candidate-card__body{padding:9px 9px 10px;gap:7px}
+  .candidate-card__name{font-size:.88rem;line-height:1.15;font-weight:700;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.3em}
+  .candidate-card__share{width:100%}
+  .candidate-card__share-btn{width:100%;justify-content:center;padding:5px 8px;font-size:.58rem;gap:5px;border-radius:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .candidate-card__share-btn svg{width:10px;height:10px;flex-shrink:0}
+  .candidate-card__divider{margin:2px 0}
+  .candidate-card__details{gap:4px}
+  .candidate-card__detail{font-size:.62rem;gap:6px}
+  .candidate-card__detail-icon{width:18px;height:18px;border-radius:6px}
+  .candidate-card__detail-icon svg{width:10px;height:10px}
+  .candidate-card__stats{gap:6px;margin-top:1px}
+  .candidate-card__metric{padding:4px 7px;font-size:.62rem;gap:4px}
+  .candidate-card__metric svg{width:10px;height:10px}
+  .candidate-card__score-head{font-size:.56rem}
+  .candidate-card__score-head strong{font-size:.62rem}
+  .candidate-card__track{height:3px}
+  .candidate-card__actions{gap:6px;margin-top:4px}
+  .candidate-card__btn{padding:7px 4px;font-size:.60rem;border-radius:8px;min-height:32px;letter-spacing:.02em}
+}
+@media(max-width:360px){
+  .candidates-grid{gap:6px}
+  .candidate-card__body{padding:8px 7px 8px;gap:6px}
+  .candidate-card__name{font-size:.82rem}
+  .candidate-card__share-btn{font-size:.54rem;padding:4px 6px}
+  .candidate-card__btn{font-size:.56rem;padding:6px 3px;min-height:30px}
+}
 
 /* ========== RANKING / PODIUM ========== */
 .ranking{background:var(--royal-900);color:#fff;position:relative;overflow:hidden}
 .ranking::before{content:'';position:absolute;inset:0;background:radial-gradient(700px 500px at 50% 0%, rgba(212,175,55,.1), transparent 60%), radial-gradient(600px 400px at 90% 90%, rgba(18,58,133,.22), transparent 60%);pointer-events:none}
 .ranking__wrap{position:relative;z-index:1;max-width:1240px;margin:0 auto}
 .ranking__head{text-align:center;margin-bottom:36px}
+.ranking__filters{display:flex;justify-content:center;gap:8px;margin:0 0 22px;flex-wrap:wrap}
+.ranking__filter{padding:8px 14px;border-radius:100px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.05);color:rgba(255,255,255,.64);font-family:var(--font-ui);font-size:.76rem;font-weight:600;letter-spacing:.02em;cursor:pointer;transition:all .18s}
+.ranking__filter:hover{border-color:rgba(212,175,55,.22);color:#fff;background:rgba(255,255,255,.07)}
+.ranking__filter.is-active{background:var(--gold);border-color:var(--gold);color:#050B16;box-shadow:0 8px 20px rgba(212,175,55,.22);font-weight:700}
 .ranking__podium{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;align-items:end;margin-bottom:28px;max-width:860px;margin-left:auto;margin-right:auto}
 .ranking__podium-card{position:relative;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:18px 14px 16px;text-align:center;backdrop-filter:blur(8px);transition:transform .3s}
 .ranking__podium-card:hover{transform:translateY(-4px)}
@@ -1085,16 +1142,19 @@ button{font-family:inherit}
 .ranking__podium-card--first:hover{transform:translateY(-16px)}
 .ranking__podium-card--second{order:1}
 .ranking__podium-card--third{order:3}
-.ranking__medal{width:44px;height:44px;margin:0 auto 10px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:800}
-.ranking__medal--1{background:linear-gradient(135deg, #F3D77A, #B48E1A);color:var(--royal-900);box-shadow:0 8px 20px rgba(212,175,55,.35)}
-.ranking__medal--2{background:linear-gradient(135deg, #E5E7EB, #9CA3AF);color:#1f2937;box-shadow:0 8px 20px rgba(156,163,175,.25)}
-.ranking__medal--3{background:linear-gradient(135deg, #FDBA74, #9C4A1A);color:#fff;box-shadow:0 8px 20px rgba(180,80,20,.25)}
+.ranking__podium-avatar{width:76px;height:76px;margin:0 auto 10px;border-radius:50%;padding:3px;background:linear-gradient(135deg, rgba(255,255,255,.12), rgba(255,255,255,.04));border:1px solid rgba(255,255,255,.12);overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.22)}
+.ranking__podium-card--first .ranking__podium-avatar{width:96px;height:96px;border-color:rgba(212,175,55,.32);box-shadow:0 12px 32px rgba(212,175,55,.28)}
+.ranking__podium-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;filter:saturate(1.02)}
+.ranking__medal{width:32px;height:32px;margin:-10px auto 8px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.9rem;font-weight:800;position:relative;z-index:1;box-shadow:0 4px 12px rgba(0,0,0,.22);border:2px solid rgba(255,255,255,.12)}
+.ranking__medal--1{background:linear-gradient(135deg, #F3D77A, #B48E1A);color:var(--royal-900)}
+.ranking__medal--2{background:linear-gradient(135deg, #E5E7EB, #9CA3AF);color:#1f2937}
+.ranking__medal--3{background:linear-gradient(135deg, #FDBA74, #9C4A1A);color:#fff}
 .ranking__podium-name{font-family:var(--font-serif);font-size:1rem;font-weight:700;color:#fff;line-height:1.2}
 .ranking__podium-code{font-size:.68rem;font-weight:700;letter-spacing:.08em;color:rgba(255,255,255,.42);margin-top:2px}
 .ranking__podium-votes{margin-top:10px;display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:100px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);font-size:.78rem;font-weight:700;color:var(--gold-light)}
 .ranking__podium-pct{font-size:.68rem;color:rgba(255,255,255,.5);margin-top:6px}
 .ranking__list{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:16px;overflow:hidden;backdrop-filter:blur(8px)}
-.ranking__row{display:grid;grid-template-columns:48px 1fr auto;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.06);transition:background .2s}
+.ranking__row{display:grid;grid-template-columns:48px 56px 1fr auto;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.06);transition:background .2s}
 .ranking__row:last-child{border-bottom:none}
 .ranking__row:hover{background:rgba(255,255,255,.04)}
 .ranking__rank{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.76rem;font-weight:800;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);color:rgba(255,255,255,.7)}
@@ -1102,8 +1162,10 @@ button{font-family:inherit}
 .ranking__rank--1{background:var(--gold);color:var(--royal-900)}
 .ranking__rank--2{background:#d1d5db;color:#111827}
 .ranking__rank--3{background:#d97706;color:#fff}
-.ranking__name{font-size:.88rem;font-weight:600;color:#fff}
-.ranking__code{font-size:.7rem;color:rgba(255,255,255,.38)}
+.ranking__avatar{width:48px;height:48px;border-radius:12px;overflow:hidden;background:#0B1E42;border:1px solid rgba(255,255,255,.08);flex-shrink:0}
+.ranking__avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.ranking__name{font-size:.88rem;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ranking__code{font-size:.70rem;color:rgba(255,255,255,.38)}
 .ranking__votes{font-size:.84rem;font-weight:700;color:var(--gold-light)}
 .ranking__votes-sub{font-size:.68rem;color:rgba(255,255,255,.42);text-align:right}
 .ranking__bar{width:80px;height:4px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden;margin-top:4px}
@@ -1112,7 +1174,7 @@ button{font-family:inherit}
 .ranking__footer{margin-top:18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
 .ranking__total{font-size:.82rem;color:rgba(255,255,255,.6)}
 .ranking__total strong{color:var(--gold-light)}
-@media(max-width:700px){.ranking__podium{grid-template-columns:1fr;gap:12px}.ranking__podium-card--first{order:1;transform:none}.ranking__podium-card--first:hover{transform:translateY(-4px)}.ranking__row{grid-template-columns:36px 1fr auto}.ranking__bar{width:56px}}
+@media(max-width:700px){.ranking__podium{grid-template-columns:1fr;gap:12px}.ranking__podium-card--first{order:1;transform:none}.ranking__podium-card--first:hover{transform:translateY(-4px)}.ranking__row{grid-template-columns:36px 48px 1fr auto}.ranking__bar{width:56px}.ranking__filters{gap:6px}.ranking__filter{padding:7px 12px;font-size:.70rem}}
 
 /* ========== TIMELINE / PARCOURS ========== */
 .timeline{position:relative}
@@ -2214,14 +2276,20 @@ button{font-family:inherit}
       <div class="au-eyebrow au-eyebrow--center" style="color:var(--gold-light)">En direct • Mise à jour automatique</div>
       <h2 class="au-title" id="rankTitle" style="color:#fff">Le classement <em>Aurora</em></h2>
       <div class="au-bar au-bar--center"></div>
-      <p class="au-subtitle" style="color:rgba(255,255,255,.58);margin-left:auto;margin-right:auto;text-align:center">Suivez en temps réel la progression des candidates. Le vote du public compte — chaque voix révèle une étoile.</p>
+      <p class="au-subtitle" style="color:rgba(255,255,255,.58);margin-left:auto;margin-right:auto;text-align:center">Suivez en temps réel la progression des candidates. Photos, votes, podium — filtré par période.</p>
+    </div>
+    <div class="ranking__filters reveal" id="rankingFilters" role="tablist" aria-label="Filtre période">
+      <button class="ranking__filter is-active" data-periode="jour" role="tab" aria-selected="true">Aujourd'hui</button>
+      <button class="ranking__filter" data-periode="semaine" role="tab" aria-selected="false">Semaine</button>
+      <button class="ranking__filter" data-periode="mois" role="tab" aria-selected="false">Mois</button>
+      <button class="ranking__filter" data-periode="global" role="tab" aria-selected="false">Total</button>
     </div>
     <div id="podium" class="ranking__podium reveal">
       <div class="ranking__empty" style="grid-column:1/-1">Chargement du podium Aurora…</div>
     </div>
     <div id="rankingList" class="ranking__list reveal"></div>
     <div class="ranking__footer reveal">
-      <div class="ranking__total">Total des votes : <strong id="rankTotal">—</strong> • Actualisation toutes les 10 secondes</div>
+      <div class="ranking__total">Total des votes (<span id="rankPeriodeLabel">aujourd'hui</span>) : <strong id="rankTotal">—</strong> • Actualisation toutes les 10s</div>
       <a href="#candidates" class="btn-primary" style="padding:10px 18px;font-size:.8rem">Voir le vote →</a>
     </div>
   </div>
@@ -3095,18 +3163,26 @@ button{font-family:inherit}
 function copyVoteLink(btn){
   const card=btn.closest('.candidate-card');
   const link=card?.querySelector('a[href*="voter.php"]');
+  const nameEl=card?.querySelector('.candidate-card__name');
+  const codeEl=card?.querySelector('.candidate-card__num');
   if(!link) return;
   const url=link.href;
+  const name=nameEl?nameEl.textContent.trim():'Candidate';
+  const code=codeEl?codeEl.textContent.trim():'';
+  // message miniature mais visible, uniforme et aligné
+  const shareText=`🌟 Votez pour ${name} ${code} - Miss Aurora RDC 2026\n👉 ${url}\n#MissAuroraRDC #Vote`;
   const doCopy=text=>{
-    if(navigator.clipboard){ navigator.clipboard.writeText(text).then(ok=>feedback(btn));}
+    if(navigator.clipboard){ navigator.clipboard.writeText(text).then(()=>feedback(btn));}
     else { const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); feedback(btn);}
   };
   function feedback(b){
-    const orig=b.innerHTML; const bg=b.style.background;
-    b.innerHTML='✅ Copié !'; b.style.background='#10b981'; b.style.color='#fff';
-    setTimeout(()=>{ b.innerHTML=orig; b.style.background=bg; b.style.color='';}, 1800);
+    const orig=b.innerHTML;
+    const origBg=b.style.background;
+    b.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg> Copié !';
+    b.style.background='#10b981'; b.style.color='#fff'; b.style.borderColor='#10b981';
+    setTimeout(()=>{ b.innerHTML=orig; b.style.background=origBg; b.style.color=''; b.style.borderColor='';}, 1800);
   }
-  doCopy(url);
+  doCopy(shareText);
 }
 function ftHandleNewsletter(e){
   e.preventDefault();
@@ -3141,26 +3217,42 @@ function handleContact(e){
   }, 900);
   return false;
 }
-function loadLiveStats(){
+
+let currentPeriode='jour';
+let currentRankingData=null;
+
+function loadLiveStats(periode){
+  if(periode) currentPeriode=periode;
   const params=new URLSearchParams(location.search);
-  const concoursId=params.get('concours_id') || <?= json_encode($concoursId) ?>;
-  fetch('?ajax=votes_data&concours_id='+encodeURIComponent(concoursId))
+  const concoursId=params.get('concours_id') || CONCOURS_ID || 0;
+  const periodeParam=currentPeriode;
+  // Update filter UI
+  document.querySelectorAll('.ranking__filter').forEach(b=>{
+    const isActive=b.dataset.periode===currentPeriode;
+    b.classList.toggle('is-active',isActive);
+    b.setAttribute('aria-selected', isActive?'true':'false');
+  });
+  const labelMap={jour:"aujourd'hui",semaine:"cette semaine",mois:"ce mois",global:"total"};
+  const labelEl=document.getElementById('rankPeriodeLabel');
+  if(labelEl) labelEl.textContent=labelMap[currentPeriode]||currentPeriode;
+
+  fetch('?ajax=votes_data&concours_id='+encodeURIComponent(concoursId)+'&periode='+encodeURIComponent(periodeParam))
     .then(r=>r.json())
     .then(data=>{
-      // ticker ranking
+      currentRankingData=data;
+      // ticker ranking (global always for ticker? use data as is)
       const rankEl=document.getElementById('tickerRanking');
       const votesEl=document.getElementById('tickerVotes');
       if(rankEl){
         if(!data.ranking || data.ranking.length===0){
           rankEl.innerHTML='<span class="aurora-ticker__item">Aucun vote pour le moment — soyez la première à voter !</span>';
         } else {
-          // duplicate for seamless scroll
           const items=data.ranking.map((c,i)=>{
             let icon='';
-            if(i===0) icon='<span class="aurora-ticker__item-icon" style="background:#FEF3C7;border-color:#FDE68A;color:#B45309"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 3h12l-1 9a5 5 0 0 1-10 0L6 3Z"/><path d="M12 16v6"/><path d="M8 22h8"/></svg></span>';
-            else if(i===1) icon='<span class="aurora-ticker__item-icon" style="background:#F3F4F6;border-color:#E5E7EB;color:#6B7280"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="8" r="5"/><path d="M8.5 12L12 16l3.5-4"/></svg></span>';
-            else if(i===2) icon='<span class="aurora-ticker__item-icon" style="background:#FFF7ED;border-color:#FFEDD5;color:#9A3412"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17 5.8 21.3l2.4-7.4L2 9.4h7.6z"/></svg></span>';
-            else icon='<span class="aurora-ticker__item-icon" style="background:#FFFFFF;color:#717171"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14" opacity=".0"/></svg>#'+(i+1)+'</span>';
+            if(i===0) icon='<span class="aurora-ticker__item-icon" style="background:#FEF3C7;border-color:#FDE68A;color:#B45309"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h12l-1 9a5 5 0 0 1-10 0L6 3Z"/><path d="M12 16v6"/><path d="M8 22h8"/></svg></span>';
+            else if(i===1) icon='<span class="aurora-ticker__item-icon" style="background:#F3F4F6;border-color:#E5E7EB;color:#6B7280"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="8" r="5"/><path d="M8.5 12L12 16l3.5-4"/></svg></span>';
+            else if(i===2) icon='<span class="aurora-ticker__item-icon" style="background:#FFF7ED;border-color:#FFEDD5;color:#9A3412"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17 5.8 21.3l2.4-7.4L2 9.4h7.6z"/></svg></span>';
+            else icon='<span class="aurora-ticker__item-icon" style="background:#FFFFFF;color:#717171"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 5v14"/><path d="M5 12h14" opacity=".0"/></svg>#'+(i+1)+'</span>';
             return `${icon} <span class="hl">${c.nom_complet}</span> <span class="gold">${c.total_votes}</span> votes`;
           }).join(' <span class="aurora-ticker__sep">◆</span> ');
           const double=items+' <span class="aurora-ticker__sep">◆</span> '+items;
@@ -3171,12 +3263,12 @@ function loadLiveStats(){
         if(!data.latestVotes || data.latestVotes.length===0){
           votesEl.innerHTML='<span class="aurora-ticker__item">Aucun vote récent.</span>';
         } else {
-          const items=data.latestVotes.map(v=> `<span class="aurora-ticker__item-icon" style="background:#1A1A1A;border-color:#2A2A2A;color:#6EE7B7"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M19 14c1.5-1.6 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2.08C10.5 3.5 9.26 3 7.5 3A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 3.9 3 5.5l7 7Z"/></svg></span> <span class="hl">${v.nom_complet}</span> <span class="gold">+${v.votes_accordes}</span> <span style="color:#9CA3AF;font-size:.70rem">${v.telephone_masked}</span> <span style="color:#6B7280;font-size:.68rem">${v.date_fr}</span>`).join(' <span class="aurora-ticker__sep">◆</span> ');
+          const items=data.latestVotes.map(v=> `<span class="aurora-ticker__item-icon" style="background:#1A1A1A;border-color:#2A2A2A;color:#6EE7B7"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M19 14c1.5-1.6 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2.08C10.5 3.5 9.26 3 7.5 3A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 3.9 3 5.5l7 7Z"/></svg></span> <span class="hl">${v.nom_complet}</span> <span class="gold">+${v.votes_accordes}</span> <span style="color:#9CA3AF;font-size:.70rem">${v.telephone_masked}</span> <span style="color:#6B7280;font-size:.68rem">${v.date_fr}</span>`).join(' <span class="aurora-ticker__sep">◆</span> ');
           const double=items+' <span class="aurora-ticker__sep">◆</span> '+items;
           votesEl.innerHTML='<span class="aurora-ticker__item">'+double+'</span>';
         }
       }
-      // podium + list
+      // podium + list with photos
       const podium=document.getElementById('podium');
       const list=document.getElementById('rankingList');
       const totalEl=document.getElementById('rankTotal');
@@ -3187,33 +3279,46 @@ function loadLiveStats(){
           podium.innerHTML='<div class="ranking__empty">Aucun vote pour le moment — le podium s’affichera dès les premiers votes.</div>';
         } else {
           const top3=data.ranking.slice(0,3);
-          const restPct= total>0 ? total : 1;
           const podiumHTML=top3.map((c,i)=>{
             const rank=i+1;
             const pct= total>0 ? Math.round((c.total_votes/total)*1000)/10 : 0;
             const cls=rank===1?'ranking__podium-card--first':rank===2?'ranking__podium-card--second':'ranking__podium-card--third';
             const medalCls='ranking__medal--'+rank;
-            const medalLabel=rank===1?'1':rank===2?'2':'3';
-            return `<div class="ranking__podium-card ${cls}"><div class="ranking__medal ${medalCls}">${rank===1?'👑':medalLabel}</div><div class="ranking__podium-name">${c.nom_complet}</div><div class="ranking__podium-code">N° ${c.code_participante}</div><div class="ranking__podium-votes">${c.total_votes} votes</div><div class="ranking__podium-pct">${pct}% • Rang ${rank}</div></div>`;
+            const medalLabel=rank===1?'👑':String(rank);
+            const photo=c.photo_url||'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=200&h=200&fit=crop';
+            const ville=c.ville_origine?`<div class="ranking__podium-code">${c.ville_origine}</div>`:'';
+            return `<div class="ranking__podium-card ${cls}">
+              <div class="ranking__podium-avatar"><img src="${photo}" alt="${c.nom_complet}" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=200&h=200&fit=crop'"></div>
+              <div class="ranking__medal ${medalCls}">${medalLabel}</div>
+              <div class="ranking__podium-name">${c.nom_complet}</div>
+              <div class="ranking__podium-code">N° ${c.code_participante}</div>
+              ${ville}
+              <div class="ranking__podium-votes">${c.total_votes} votes</div>
+              <div class="ranking__podium-pct">${pct}% • Rang ${rank}</div>
+            </div>`;
           }).join('');
-          // if less than 3, fill empty
           podium.innerHTML=podiumHTML || '<div class="ranking__empty">Podium en attente</div>';
         }
       }
       if(list){
         if(!data.ranking || data.ranking.length===0){
-          list.innerHTML='<div class="ranking__empty">Aucune candidate classée.</div>';
+          list.innerHTML='<div class="ranking__empty">Aucune candidate classée pour cette période.</div>';
         } else {
           const rows=data.ranking.map((c,i)=>{
             const rank=i+1;
             const pct= total>0 ? Math.round((c.total_votes/total)*1000)/10 : 0;
             const rankCls= rank<=3 ? 'ranking__rank--'+rank : '';
-            return `<div class="ranking__row"><span class="ranking__rank ${rankCls}">${rank}</span><span><span class="ranking__name">${c.nom_complet}</span><br><span class="ranking__code">N° ${c.code_participante}</span></span><span style="text-align:right"><span class="ranking__votes">${c.total_votes} votes</span><div class="ranking__votes-sub">${pct}%</div><div class="ranking__bar"><div class="ranking__bar-fill" style="width:${pct}%"></div></div></span></div>`;
+            const photo=c.photo_url||'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=200&h=200&fit=crop';
+            return `<div class="ranking__row">
+              <span class="ranking__rank ${rankCls}">${rank}</span>
+              <div class="ranking__avatar"><img src="${photo}" alt="${c.nom_complet}" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=80&h=80&fit=crop'"></div>
+              <span style="min-width:0"><span class="ranking__name">${c.nom_complet}</span><br><span class="ranking__code">N° ${c.code_participante}${c.ville_origine?' • '+c.ville_origine:''}</span></span>
+              <span style="text-align:right"><span class="ranking__votes">${c.total_votes} votes</span><div class="ranking__votes-sub">${pct}%</div><div class="ranking__bar"><div class="ranking__bar-fill" style="width:${pct}%"></div></div></span>
+            </div>`;
           }).join('');
           list.innerHTML=rows;
         }
       }
-      // animate candidate cards popularity after load
       document.querySelectorAll('.candidate-card').forEach(card=>{
         const fill=card.querySelector('.candidate-card__fill');
         if(fill) requestAnimationFrame(()=> card.classList.add('is-visible'));
@@ -3221,8 +3326,17 @@ function loadLiveStats(){
     })
     .catch(err=> console.error('Ticker error', err));
 }
+
+const CONCOURS_ID = <?= json_encode($concoursId) ?>;
+
+// filters events
+document.getElementById('rankingFilters')?.querySelectorAll('.ranking__filter').forEach(btn=>{
+  btn.addEventListener('click',()=>loadLiveStats(btn.dataset.periode));
+});
+
 loadLiveStats();
-setInterval(loadLiveStats, 10000);
+setInterval(()=>loadLiveStats(), 10000);
+
 
 // ===== CANDIDATES TABS =====
 (function(){

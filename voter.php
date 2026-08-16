@@ -180,6 +180,7 @@ if($candidate){
 <meta name="twitter:card" content="summary_large_image">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700&family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 :root{
   --bg:#050B16;--bg2:#0B1E42;--bg3:#071A3D;
@@ -344,20 +345,100 @@ h1 em{font-style:italic;font-weight:700;color:var(--gold-lt)}
   #receiptBlock .receipt-row{color:#333!important;border-color:#eee!important}
   #receiptBlock .receipt-row span:last-child{color:#000!important}
 }
+
+/* Responsive header - vote page */
+.aurora-nav__link{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:8px;font-family:var(--font-ui);font-size:.78rem;color:#444;transition:background .15s}
+.aurora-nav__link:hover{background:#F5F5F5;color:#111}
+.aurora-burger{display:none}
+.aurora-drawer.is-open{right:0!important}
+.aurora-overlay.is-open{opacity:1!important;pointer-events:all!important}
+.aurora-bottom-nav{display:none}
+@media(max-width:860px){
+  .aurora-nav{display:none!important}
+  .aurora-burger{display:flex!important}
+}
+@media(max-width:768px){
+  .aurora-bottom-nav{display:block!important}
+  body{padding-bottom:68px}
+  .container{padding-bottom:100px}
+}
+
+
+/* App-like candidate & classement list - mobile pro */
+@media(max-width:768px){
+  .aurora-bottom-nav{display:block!important}
+  body{padding-bottom:72px}
+}
+@media(max-width:640px){
+  .stepper{padding:10px 8px;gap:0}
+  .step{min-width:48px}
+  .step-num{width:30px;height:30px;font-size:.74rem}
+  .step-label{font-size:.52rem}
+  .class-row{padding:9px 0;gap:10px}
+  .class-rank{width:26px;font-size:.78rem}
+  .class-thumb{width:36px;height:36px;border-radius:9px}
+  .class-info strong{font-size:.80rem}
+  .class-info small{font-size:.64rem}
+  .class-votes{font-size:.76rem}
+}
+@media(max-width:380px){
+  .container{padding-left:10px;padding-right:10px}
+  .packs-grid{grid-template-columns:1fr 1fr;gap:8px}
+  .pack-option{padding:12px 8px}
+  .pack-option .votes{font-size:1.1rem}
+  .class-row{gap:8px}
+  .class-thumb{width:32px;height:32px}
+  .class-info strong{font-size:.76rem}
+}
+
+/* Share link message miniature visible uniforme - candidate cards in vote page if any */
+.share-msg-mini{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:100px;background:rgba(212,175,55,.10);border:1px solid rgba(212,175,55,.18);font-family:var(--font-ui);font-size:.64rem;font-weight:600;color:var(--gold-lt);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
 </style>
 </head>
 <body>
-<header class="aurora-header">
-  <a href="index.php" class="aurora-header__logo">
-    <?php if($siteLogoUrl): ?><img src="<?= htmlspecialchars($siteLogoUrl) ?>" alt="logo"><?php endif; ?>
-    <span><?= htmlspecialchars($siteName) ?></span>
-  </a>
-  <nav class="aurora-header__nav">
-    <a href="index.php">Accueil</a>
-    <a href="index.php#candidates">Candidates</a>
-    <a href="index.php#classement">Classement</a>
-  </nav>
+<header class="aurora-header" id="auroraHeader">
+  <div class="aurora-header__inner" style="max-width:1120px;margin:0 auto;padding:0 16px;height:60px;display:flex;align-items:center;justify-content:space-between;width:100%">
+    <div class="aurora-header__left" style="display:flex;align-items:center;gap:16px">
+      <a href="index.php" class="aurora-header__logo">
+        <?php if($siteLogoUrl): ?><img src="<?= htmlspecialchars($siteLogoUrl) ?>" alt="logo"><?php else: ?><span style="width:32px;height:32px;border-radius:8px;background:#071A3D;color:#D4AF37;display:flex;align-items:center;justify-content:center;font-weight:700">A</span><?php endif; ?>
+        <span style="font-weight:700;color:#111;font-family:var(--font-sans);font-size:.9rem"><?= htmlspecialchars($siteName ?: 'LME GROUP') ?></span>
+      </a>
+      <nav class="aurora-nav" style="display:flex;align-items:center;gap:2px">
+        <a href="index.php" class="aurora-nav__link"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 9 12 2l9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/><path d="M9 22V12h6v10"/></svg> Accueil</a>
+        <a href="index.php#candidates" class="aurora-nav__link"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg> Candidates</a>
+        <a href="index.php#classement" class="aurora-nav__link"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg> Classement</a>
+      </nav>
+    </div>
+    <div class="aurora-header__right" style="display:flex;align-items:center;gap:10px">
+      <a href="index.php#vote" class="btn btn-gold" style="padding:8px 14px;font-size:.76rem;min-height:36px;border-radius:8px">Voter</a>
+      <button class="aurora-burger" id="auroraBurger" aria-label="Menu" aria-expanded="false" style="width:36px;height:36px;border-radius:8px;border:1px solid #DDD;background:#fff;display:none;align-items:center;justify-content:center;cursor:pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg></button>
+    </div>
+  </div>
 </header>
+<div class="aurora-drawer" id="auroraDrawer" aria-hidden="true" style="position:fixed;top:0;right:-100%;width:min(320px,88vw);height:100dvh;background:#fff;border-left:1px solid #EBEBEB;padding:64px 16px 20px;z-index:999;transition:right .26s;overflow-y:auto;display:flex;flex-direction:column;gap:16px;box-shadow:-8px 0 32px rgba(0,0,0,.08)">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:12px;border-bottom:1px solid #EBEBEB"><span style="font-weight:700;color:#111">Menu</span><button id="drawerClose" style="width:32px;height:32px;border-radius:50%;border:1px solid #DDD;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>
+  <nav style="display:flex;flex-direction:column;gap:4px">
+    <a href="index.php" style="padding:11px;border-radius:8px;color:#222;font-size:.88rem;display:flex;align-items:center;gap:10px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 9 12 2l9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/><path d="M9 22V12h6v10"/></svg> Accueil</a>
+    <a href="index.php#candidates" style="padding:11px;border-radius:8px;color:#222;font-size:.88rem;display:flex;align-items:center;gap:10px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg> Candidates</a>
+    <a href="index.php#classement" style="padding:11px;border-radius:8px;color:#222;font-size:.88rem;display:flex;align-items:center;gap:10px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg> Classement</a>
+    <a href="index.php#vote" style="padding:11px;border-radius:8px;color:#222;font-size:.88rem;display:flex;align-items:center;gap:10px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M19 14c1.5-1.6 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2.08C10.5 3.5 9.26 3 7.5 3A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 3.9 3 5.5l7 7Z"/></svg> Vote</a>
+  </nav>
+  <div style="margin-top:auto;padding-top:16px;border-top:1px solid #EBEBEB;display:flex;flex-direction:column;gap:10px">
+    <a href="candidatures.php" style="width:100%;padding:12px;border-radius:8px;background:#071A3D;color:#fff;text-align:center;font-weight:600;font-size:.88rem">Devenir candidate</a>
+  </div>
+</div>
+<div class="aurora-overlay" id="auroraOverlay" style="position:fixed;inset:0;background:rgba(0,0,0,.32);opacity:0;pointer-events:none;transition:opacity .2s;z-index:998"></div>
+<nav class="aurora-bottom-nav" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:900;background:rgba(255,255,255,.98);backdrop-filter:blur(12px);border-top:1px solid #EBEBEB;padding:3px 0 calc(3px + env(safe-area-inset-bottom));box-shadow:0 -1px 10px rgba(0,0,0,.06)">
+  <div style="max-width:420px;margin:0 auto;display:flex;justify-content:space-around;align-items:center">
+    <a href="index.php" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:5px;color:#717171;font-size:.60rem"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 9 12 2l9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/><path d="M9 22V12h6v10"/></svg> Accueil</a>
+    <a href="index.php#candidates" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:5px;color:#717171;font-size:.60rem"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg> Candid.</a>
+    <a href="#" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:5px;color:#071A3D;font-weight:600;font-size:.60rem"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M19 14c1.5-1.6 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2.08C10.5 3.5 9.26 3 7.5 3A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 3.9 3 5.5l7 7Z"/></svg> Vote</a>
+    <a href="index.php#classement" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:5px;color:#717171;font-size:.60rem"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg> Class.</a>
+    <a href="#" id="bottomMenuBtn" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:5px;color:#717171;font-size:.60rem"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg> Menu</a>
+  </div>
+</nav>
+
 
 <div class="container">
 <?php if($error): ?>
@@ -459,8 +540,9 @@ h1 em{font-style:italic;font-weight:700;color:var(--gold-lt)}
       <p>Miss Aurora RDC — LME GROUP</p>
       <div class="receipt-badge"><span style="width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block"></span> Paiement confirmé • Preuve de vote</div>
     </div>
-    <div class="qr-wrap">
-      <div class="qr-box" id="qrBox">LME<br>2026<br><span id="qrRef" style="font-size:.52rem;word-break:break-all"></span></div>
+    <div class="qr-wrap" style="display:flex;flex-direction:column;align-items:center;gap:8px;margin:18px 0">
+      <div id="qrcode" style="position:relative;width:132px;height:132px;background:#fff;border-radius:14px;padding:8px;box-shadow:0 8px 24px rgba(0,0,0,.18)"></div>
+      <div style="font-family:var(--font-ui);font-size:.62rem;color:var(--muted);text-align:center;max-width:240px;word-break:break-all">Réf: <span id="qrRef" style="font-weight:700;color:#fff"></span></div>
     </div>
     <div class="receipt-details" id="receiptDetails">
       <div class="receipt-row"><span>Référence</span><span><strong id="rc-ref">—</strong></span></div>
@@ -687,9 +769,11 @@ function startPolling(reference){
   },3000);
 }
 
+
 function fillReceipt(ref,statut,details){
   document.getElementById('rc-ref').textContent=ref;
-  document.getElementById('qrRef').textContent=ref;
+  const qrRefEl=document.getElementById('qrRef');
+  if(qrRefEl) qrRefEl.textContent=ref;
   document.getElementById('rc-cand').textContent=CANDIDATE_NAME;
   document.getElementById('rc-code').textContent=CANDIDATE_CODE;
   document.getElementById('rc-votes').textContent=selectedOffre?selectedOffre.nombre_votes:'—';
@@ -701,7 +785,35 @@ function fillReceipt(ref,statut,details){
   document.getElementById('rc-date').textContent=new Date().toLocaleString('fr-FR');
   document.getElementById('rc-statut').textContent=statut;
   lastDetails=details;
+
+  const qrContainer=document.getElementById('qrcode');
+  if(qrContainer){
+    qrContainer.innerHTML='';
+    const qrData = `https://lme-group.zaloriatech.com/verify?ref=${encodeURIComponent(ref)}&c=${encodeURIComponent(CANDIDATE_CODE)}`;
+    const qrcode = new QRCode(qrContainer, {
+      text: qrData,
+      width: 116,
+      height: 116,
+      colorDark: "#050B16",
+      colorLight: "#ffffff",
+      correctLevel: QRCode.CorrectLevel.H
+    });
+    setTimeout(()=>{
+      const canvasOrImg = qrContainer.querySelector('canvas') || qrContainer.querySelector('img');
+      if(!canvasOrImg) return;
+      let logoWrap = document.createElement('div');
+      logoWrap.style.cssText='position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:36px;height:36px;background:#fff;border-radius:8px;border:2px solid #fff;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.18);overflow:hidden';
+      const logoImg = document.createElement('img');
+      logoImg.src = '<?= htmlspecialchars($siteLogoUrl ?: 'https://gestion.zaloriatech.com/admin/uploads/sites_logo/default.jpg') ?>';
+      logoImg.style.cssText='width:28px;height:28px;object-fit:contain;border-radius:4px';
+      logoImg.onerror=()=>{ logoWrap.innerHTML='<span style="font-weight:800;font-size:.68rem;color:#071A3D">LME</span>'; };
+      logoWrap.appendChild(logoImg);
+      qrContainer.style.position='relative';
+      qrContainer.appendChild(logoWrap);
+    }, 180);
+  }
 }
+
 
 async function updateVotesActuels(){
   try{
@@ -774,6 +886,25 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     document.querySelectorAll('.class-period').forEach(p=>p.style.display=p.dataset.periode===periode?'block':'none');
   });
 });
+
+
+// ===== HEADER BURGER + DRAWER (responsive) =====
+(function(){
+  const burger=document.getElementById('auroraBurger');
+  const drawer=document.getElementById('auroraDrawer');
+  const overlay=document.getElementById('auroraOverlay');
+  const closeBtn=document.getElementById('drawerClose');
+  const bottomBtn=document.getElementById('bottomMenuBtn');
+  function open(){ if(!drawer||!overlay||!burger) return; drawer.classList.add('is-open'); overlay.classList.add('is-open'); burger.setAttribute('aria-expanded','true'); drawer.setAttribute('aria-hidden','false'); document.body.style.overflow='hidden'; }
+  function close(){ if(!drawer||!overlay||!burger) return; drawer.classList.remove('is-open'); overlay.classList.remove('is-open'); burger.setAttribute('aria-expanded','false'); drawer.setAttribute('aria-hidden','true'); document.body.style.overflow=''; }
+  burger?.addEventListener('click',()=> drawer.classList.contains('is-open')?close():open());
+  closeBtn?.addEventListener('click', close);
+  overlay?.addEventListener('click', close);
+  bottomBtn?.addEventListener('click', (e)=>{ e.preventDefault(); drawer.classList.contains('is-open')?close():open(); });
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape' && drawer?.classList.contains('is-open')) close(); });
+  drawer?.querySelectorAll('a').forEach(a=>a.addEventListener('click', close));
+})();
+
 
 updateStepper(1);
 updateSummary();
