@@ -487,23 +487,23 @@ button{font-family:inherit}
 }
 .aurora-hero__bg-slides{position:absolute;inset:0;overflow:hidden}
 .aurora-hero__bg-slide{
-  position:absolute;inset:0;background-size:cover;background-position:center 18%;
-  opacity:0;transform:scale(1.06);transition:opacity 1.1s ease, transform 7.5s cubic-bezier(.25,.46,.45,.94);
-  filter:brightness(.42) saturate(.92) contrast(1.02);
+  position:absolute;inset:0;background-size:cover;background-position:center 22%;
+  opacity:0;transform:scale(1.08);transition:opacity 1.2s ease, transform 8.5s cubic-bezier(.25,.46,.45,.94);
+  filter:brightness(.72) saturate(1.05) contrast(1.05);
 }
 .aurora-hero__bg-slide.is-active{opacity:1;transform:scale(1)}
 .aurora-hero__bg-overlay{
   position:absolute;inset:0;
   background:
-    linear-gradient(90deg, rgba(5,11,22,.88) 0%, rgba(5,11,22,.74) 42%, rgba(5,11,22,.38) 68%, rgba(5,11,22,.18) 100%),
-    linear-gradient(180deg, transparent 55%, rgba(5,11,22,.52) 100%);
+    linear-gradient(90deg, rgba(5,11,22,.72) 0%, rgba(5,11,22,.52) 38%, rgba(5,11,22,.28) 62%, rgba(5,11,22,.12) 100%),
+    linear-gradient(180deg, rgba(5,11,22,.10) 0%, rgba(5,11,22,.42) 100%);
 }
 @media(max-width:1024px){
-  .aurora-hero__bg-slide{filter:brightness(.38) saturate(.92)}
+  .aurora-hero__bg-slide{filter:brightness(.64) saturate(1.02)}
   .aurora-hero__bg-overlay{
     background:
-      linear-gradient(180deg, rgba(5,11,22,.22) 0%, rgba(5,11,22,.68) 58%, rgba(5,11,22,.86) 100%),
-      linear-gradient(90deg, rgba(5,11,22,.72) 0%, rgba(5,11,22,.38) 100%);
+      linear-gradient(180deg, rgba(5,11,22,.08) 0%, rgba(5,11,22,.58) 54%, rgba(5,11,22,.82) 100%),
+      linear-gradient(90deg, rgba(5,11,22,.56) 0%, rgba(5,11,22,.22) 100%);
   }
 }
 .aurora-hero__shell{
@@ -579,30 +579,39 @@ button{font-family:inherit}
 .aurora-hero__meta-icon{width:32px;height:32px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;color:var(--gold-light);flex-shrink:0}
 .aurora-hero__meta-label{font-size:.62rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.42);display:block;line-height:1}
 .aurora-hero__meta-value{font-size:.78rem;font-weight:600;color:#fff;display:block;margin-top:3px;line-height:1}
-.aurora-hero__right{position:relative;display:flex;flex-direction:column;gap:12px}
-.aurora-hero__mosaic{
-  display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:460px;width:100%;margin-left:auto;
+.aurora-hero__right{position:relative;display:flex;flex-direction:column;gap:14px}
+.hero-cc{
+  position:relative;max-width:480px;width:100%;margin-left:auto;
+  border-radius:20px;overflow:hidden;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  box-shadow:0 18px 48px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.08);
 }
-.aurora-hero__tile{
-  position:relative;aspect-ratio:4/3.1;border-radius:16px;overflow:hidden;
-  background:#0B1E42;border:1px solid rgba(255,255,255,.08);
-  box-shadow:0 12px 32px rgba(0,0,0,.28);display:block;cursor:default;
-  transition:transform .28s, box-shadow .28s, border-color .28s;
-}
-.aurora-hero__tile:hover{transform:translateY(-4px);box-shadow:0 16px 40px rgba(0,0,0,.34);border-color:rgba(212,175,55,.18)}
-.aurora-hero__tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .6s, filter .3s;filter:saturate(.96)}
-.aurora-hero__tile:hover img{transform:scale(1.06);filter:saturate(1.04)}
-.aurora-hero__tile::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg, transparent 38%, rgba(5,11,22,.18) 58%, rgba(5,11,22,.78) 100%)}
-.aurora-hero__tile-num{
-  position:absolute;top:10px;left:10px;z-index:2;
-  display:inline-flex;align-items:center;gap:6px;
-  padding:4px 8px;border-radius:999px;background:rgba(5,11,22,.55);border:1px solid rgba(255,255,255,.14);
-  backdrop-filter:blur(8px);color:#fff;font-family:var(--font-ui);font-size:.62rem;font-weight:700;letter-spacing:.06em;
-}
-.aurora-hero__tile-num i{width:4px;height:4px;border-radius:50%;background:var(--gold);display:inline-block}
-.aurora-hero__tile-body{position:absolute;left:12px;right:12px;bottom:11px;z-index:2}
-.aurora-hero__tile-title{font-family:var(--font-serif);font-size:1rem;font-weight:700;color:#fff;line-height:1.1;letter-spacing:-.01em}
-.aurora-hero__tile-sub{font-family:var(--font-ui);font-size:.64rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.68);margin-top:3px}
+.hero-cc__viewport{position:relative;overflow:hidden;aspect-ratio:4/3.2;background:#0B1E42}
+.hero-cc__track{display:flex;transition:transform .6s cubic-bezier(.32,0,.67,0);will-change:transform;height:100%}
+.hero-cc__slide{flex:0 0 100%;position:relative;overflow:hidden;background:#0B1E42}
+.hero-cc__slide img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 18%;transition:transform .8s, filter .4s;filter:saturate(1.02) brightness(1.02)}
+.hero-cc__slide.is-active img{transform:scale(1.02)}
+.hero-cc__fade{position:absolute;inset:0;background:linear-gradient(180deg, rgba(5,11,22,.02) 10%, rgba(5,11,22,.08) 40%, rgba(5,11,22,.88) 100%);z-index:1}
+.hero-cc__info{position:absolute;left:14px;right:14px;bottom:14px;z-index:2;display:flex;flex-direction:column;gap:6px}
+.hero-cc__name{font-family:var(--font-serif);font-size:1.22rem;font-weight:700;color:#fff;line-height:1.1;text-shadow:0 2px 12px rgba(0,0,0,.4)}
+.hero-cc__meta{display:flex;flex-wrap:wrap;gap:6px}
+.hero-cc__chip{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:100px;background:rgba(5,11,22,.48);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(8px);color:#fff;font-family:var(--font-ui);font-size:.62rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.hero-cc__chip-dot{width:5px;height:5px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px rgba(212,175,55,.6)}
+.hero-cc__nav{position:absolute;top:12px;right:12px;z-index:3;display:flex;gap:6px}
+.hero-cc__btn{width:32px;height:32px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:rgba(5,11,22,.42);backdrop-filter:blur(10px);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .18s, transform .16s}
+.hero-cc__btn:hover{background:rgba(255,255,255,.14);transform:translateY(-1px)}
+.hero-cc__dots{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);z-index:3;display:flex;gap:6px;padding:6px 10px;border-radius:100px;background:rgba(5,11,22,.38);border:1px solid rgba(255,255,255,.10);backdrop-filter:blur(10px)}
+.hero-cc__dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.36);transition:all .22s;cursor:pointer;border:none;padding:0}
+.hero-cc__dot.is-active{width:18px;background:var(--gold);box-shadow:0 0 10px rgba(212,175,55,.5)}
+.hero-cc__progress{position:absolute;left:0;right:0;bottom:0;height:2px;background:rgba(255,255,255,.12);z-index:3}
+.hero-cc__progress-fill{height:100%;width:0%;background:linear-gradient(90deg, var(--gold), var(--gold-light));transition:width .1s linear}
+/* SKELETON APP-LIKE FOR HERO */
+.hero-cc__skeleton{position:absolute;inset:0;background:linear-gradient(90deg, #0B1E42 25%, #123063 37%, #0B1E42 63%);background-size:400% 100%;animation:heroShine 1.4s ease infinite;z-index:0}
+@keyframes heroShine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+/* keep old mosaic selectors for backwards compat (hidden) */
+.aurora-hero__mosaic{display:none!important}
+.aurora-hero__tile{display:none!important}
 .aurora-hero__live{
   max-width:460px;width:100%;margin-left:auto;
   display:flex;align-items:center;justify-content:space-between;gap:12px;
@@ -621,7 +630,7 @@ button{font-family:inherit}
 }
 @media(max-width:1024px){
   .aurora-hero__shell{grid-template-columns:1fr;gap:22px;padding:28px 20px 28px}
-  .aurora-hero__mosaic{margin-left:0;max-width:560px}
+  .hero-cc{margin-left:0;max-width:560px}
   .aurora-hero__live{margin-left:0;max-width:560px}
   .aurora-hero__meta{gap:12px}
 }
@@ -631,9 +640,9 @@ button{font-family:inherit}
   .aurora-hero__desc{font-size:.84rem;margin:10px 0 18px}
   .aurora-hero__actions{flex-direction:column}
   .aurora-hero__actions a{width:100%;justify-content:center}
-  .aurora-hero__mosaic{gap:10px;max-width:100%}
-  .aurora-hero__tile{border-radius:14px}
-  .aurora-hero__tile-title{font-size:.90rem}
+  .hero-cc{max-width:100%;border-radius:16px}
+  .hero-cc__viewport{aspect-ratio:4/3.4}
+  .hero-cc__name{font-size:1.05rem}
   .aurora-hero__meta{flex-direction:column;align-items:flex-start;gap:10px;padding-top:16px;margin-top:18px}
   .aurora-hero__live{padding:9px 10px}
 }
@@ -891,7 +900,11 @@ button{font-family:inherit}
 }
 .candidate-card:hover{transform:translateY(-6px);box-shadow:0 16px 40px rgba(5,11,22,.1);border-color:rgba(212,175,55,.18)}
 .candidate-card__photo{position:relative;aspect-ratio:3/3.6;overflow:hidden;background:#e8eef8}
-.candidate-card__photo img{width:100%;height:100%;object-fit:cover;transition:transform .7s, filter .3s;filter:saturate(.96)}
+.candidate-card__photo .skel{position:absolute;inset:0;z-index:0;background:linear-gradient(90deg, #E8EEF8 25%, #F1F5FB 37%, #E8EEF8 63%);background-size:400% 100%;animation:skShimmer 1.3s ease infinite}
+@keyframes skShimmer{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+.candidate-card__photo img{width:100%;height:100%;object-fit:cover;transition:opacity .45s ease, transform .7s, filter .3s;filter:saturate(.96);opacity:0}
+.candidate-card__photo img.is-loaded{opacity:1}
+.candidate-card__photo.is-loaded .skel{opacity:0;pointer-events:none;transition:opacity .3s}
 .candidate-card:hover .candidate-card__photo img{transform:scale(1.06);filter:saturate(1.05)}
 .candidate-card__veil{position:absolute;inset:0;background:linear-gradient(180deg, transparent 45%, rgba(5,11,22,.55) 100%);pointer-events:none}
 .candidate-card__num{position:absolute;top:10px;left:10px;z-index:2;padding:4px 9px;border-radius:999px;background:var(--gold);color:var(--royal-900);font-size:.62rem;font-weight:800;letter-spacing:.06em;box-shadow:0 4px 12px rgba(212,175,55,.3)}
@@ -1508,40 +1521,45 @@ button{font-family:inherit}
         </div>
       </div>
     </div>
-    <div class="aurora-hero__right" aria-label="Valeurs Aurora">
-      <div class="aurora-hero__mosaic">
-        <a href="#pourquoi" class="aurora-hero__tile" aria-label="Lumière — révéler les talents">
-          <img src="https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600&h=450&fit=crop" alt="Lumière — Miss Aurora RDC" loading="eager" fetchpriority="high">
-          <span class="aurora-hero__tile-num"><i></i> 01</span>
-          <span class="aurora-hero__tile-body">
-            <span class="aurora-hero__tile-title">Lumière</span>
-            <span class="aurora-hero__tile-sub">Révéler les talents</span>
-          </span>
-        </a>
-        <a href="#pourquoi" class="aurora-hero__tile" aria-label="Espoir — une génération nouvelle">
-          <img src="https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=600&h=450&fit=crop" alt="Espoir — Miss Aurora RDC" loading="lazy">
-          <span class="aurora-hero__tile-num"><i></i> 02</span>
-          <span class="aurora-hero__tile-body">
-            <span class="aurora-hero__tile-title">Espoir</span>
-            <span class="aurora-hero__tile-sub">Une génération</span>
-          </span>
-        </a>
-        <a href="#pourquoi" class="aurora-hero__tile" aria-label="Émergence — femmes leaders">
-          <img src="https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=600&h=450&fit=crop" alt="Émergence — Miss Aurora RDC" loading="lazy">
-          <span class="aurora-hero__tile-num"><i></i> 03</span>
-          <span class="aurora-hero__tile-body">
-            <span class="aurora-hero__tile-title">Émergence</span>
-            <span class="aurora-hero__tile-sub">Femmes leaders</span>
-          </span>
-        </a>
-        <a href="#pourquoi" class="aurora-hero__tile" aria-label="Avenir — Congo d'excellence">
-          <img src="https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=600&h=450&fit=crop" alt="Avenir — Miss Aurora RDC" loading="lazy">
-          <span class="aurora-hero__tile-num"><i></i> 04</span>
-          <span class="aurora-hero__tile-body">
-            <span class="aurora-hero__tile-title">Avenir</span>
-            <span class="aurora-hero__tile-sub">Congo d'excellence</span>
-          </span>
-        </a>
+    <div class="aurora-hero__right" aria-label="Candidates à la une">
+      <div class="hero-cc" id="heroCandidatesCarousel" aria-roledescription="carousel" aria-label="Photos des candidates">
+        <div class="hero-cc__viewport" id="heroCcViewport">
+          <div class="hero-cc__track" id="heroCcTrack">
+            <?php if(!empty($heroCandidates)): foreach($heroCandidates as $ci=>$hc):
+              $ccPhoto = getCandidatePhotoUrl($hc['photo_officielle'] ?? '');
+              if (empty($ccPhoto)) $ccPhoto = 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600&h=750&fit=crop';
+              $ccCity = $hc['ville_origine'] ?? 'Kinshasa';
+              $ccCode = $hc['code_participante'] ?? $ci+1;
+            ?>
+            <div class="hero-cc__slide <?= $ci===0?'is-active':'' ?>" role="group" aria-roledescription="slide" aria-label="<?= $ci+1 ?> sur <?= count($heroCandidates) ?>">
+              <span class="hero-cc__skeleton" aria-hidden="true"></span>
+              <img class="lazy-img" data-src="<?= esc($ccPhoto) ?>?v=<?= time() ?>" alt="<?= esc($hc['nom_complet']) ?>" loading="<?= $ci===0?'eager':'lazy' ?>" decoding="async" fetchpriority="<?= $ci===0?'high':'low' ?>" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600&h=750&fit=crop'">
+              <div class="hero-cc__fade" aria-hidden="true"></div>
+              <div class="hero-cc__info">
+                <div class="hero-cc__name"><?= esc($hc['nom_complet']) ?></div>
+                <div class="hero-cc__meta">
+                  <span class="hero-cc__chip"><span class="hero-cc__chip-dot"></span> N° <?= esc($ccCode) ?></span>
+                  <span class="hero-cc__chip"><?= esc($ccCity) ?></span>
+                  <span class="hero-cc__chip">Candidate <?= esc($auroraYear) ?></span>
+                </div>
+              </div>
+            </div>
+            <?php endforeach; else: ?>
+            <div class="hero-cc__slide is-active">
+              <span class="hero-cc__skeleton"></span>
+              <img src="https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600&h=750&fit=crop" alt="Miss Aurora RDC" loading="eager">
+              <div class="hero-cc__fade"></div>
+              <div class="hero-cc__info"><div class="hero-cc__name">Miss Aurora RDC</div><div class="hero-cc__meta"><span class="hero-cc__chip">Édition <?= esc($auroraYear) ?></span></div></div>
+            </div>
+            <?php endif; ?>
+          </div>
+          <div class="hero-cc__nav" aria-hidden="false">
+            <button class="hero-cc__btn" id="heroCcPrev" aria-label="Précédente"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></button>
+            <button class="hero-cc__btn" id="heroCcNext" aria-label="Suivante"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></button>
+          </div>
+          <div class="hero-cc__dots" id="heroCcDots" role="tablist" aria-label="Navigation carousel"></div>
+          <div class="hero-cc__progress" aria-hidden="true"><div class="hero-cc__progress-fill" id="heroCcProgress"></div></div>
+        </div>
       </div>
       <div class="aurora-hero__live" role="status" aria-live="polite">
         <div class="aurora-hero__live-left">
@@ -1997,7 +2015,8 @@ button{font-family:inherit}
           ?>
           <div class="candidate-card">
             <div class="candidate-card__photo">
-              <img src="<?= esc($photoUrl) ?>?v=<?= time() ?>" alt="<?= esc($cand['nom_complet']) ?>" loading="lazy" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600&h=750&fit=crop'">
+              <span class="skel" aria-hidden="true"></span>
+              <img class="lazy-img" data-src="<?= esc($photoUrl) ?>?v=<?= time() ?>" alt="<?= esc($cand['nom_complet']) ?>" loading="lazy" decoding="async" fetchpriority="low" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600&h=750&fit=crop';this.classList.add('is-loaded');this.closest('.candidate-card__photo')?.classList.add('is-loaded')">
               <div class="candidate-card__veil"></div>
               <span class="candidate-card__num">N° <?= esc($cand['code_participante']) ?></span>
               <span class="candidate-card__tag">Candidate <?= esc($auroraYear) ?></span>
@@ -2042,7 +2061,7 @@ button{font-family:inherit}
             if (empty($photoUrl)) $photoUrl = 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600&h=750&fit=crop';
           ?>
             <div class="candidate-card">
-              <div class="candidate-card__photo"><img src="<?= esc($photoUrl) ?>?v=<?= time() ?>" alt="<?= esc($cand['nom_complet']) ?>" loading="lazy" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600&h=750&fit=crop'"><div class="candidate-card__veil"></div><span class="candidate-card__num">N° <?= esc($cand['code_participante']) ?></span><span class="candidate-card__city"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> <?= esc($cand['ville_origine']??'Kinshasa') ?></span></div>
+              <div class="candidate-card__photo"><span class="skel" aria-hidden="true"></span><img class="lazy-img" data-src="<?= esc($photoUrl) ?>?v=<?= time() ?>" alt="<?= esc($cand['nom_complet']) ?>" loading="lazy" decoding="async" fetchpriority="low" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600&h=750&fit=crop';this.classList.add('is-loaded');this.closest('.candidate-card__photo')?.classList.add('is-loaded')"><div class="candidate-card__veil"></div><span class="candidate-card__num">N° <?= esc($cand['code_participante']) ?></span><span class="candidate-card__city"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> <?= esc($cand['ville_origine']??'Kinshasa') ?></span></div>
               <div class="candidate-card__body"><h3 class="candidate-card__name"><?= esc($cand['nom_complet']) ?></h3><div class="candidate-card__stats"><div class="candidate-card__metrics"><span class="candidate-card__metric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> <?= $votes ?> votes</span></div><div><div class="candidate-card__score-head"><span>Popularité</span><strong><?= $pct ?>%</strong></div><div class="candidate-card__track"><div class="candidate-card__fill" style="--score:<?= $pct ?>%"></div></div></div></div><div class="candidate-card__actions"><a href="profil.php?code=<?= urlencode($cand['code_participante']) ?>" class="candidate-card__btn candidate-card__btn--ghost">Profil</a><a href="voter.php?candidat=<?= urlencode($cand['participante_id']) ?>&concours_id=<?= $concoursId ?>" class="candidate-card__btn candidate-card__btn--primary">Voter</a></div></div>
             </div>
           <?php endforeach; ?>
@@ -2720,10 +2739,15 @@ button{font-family:inherit}
   goTo(0);
 })();
 
-// ===== HERO BG CAROUSEL — FOND PC & MOBILE =====
+// ===== HERO BG CAROUSEL — FOND PC & MOBILE (désactivé si hero-cc existe, géré par hero-cc) =====
 (function(){
   const bg = document.querySelectorAll('#heroBgSlides .aurora-hero__bg-slide');
   if(!bg.length || bg.length<=1) return;
+  // Si le nouveau carousel candidates existe, il gère déjà le fond
+  if(document.getElementById('heroCandidatesCarousel')){
+    // ne pas lancer timer auto, laisser hero-cc sync
+    return;
+  }
   let cur = 0;
   const INTERVAL = 5200;
   let timer = setInterval(()=> {
@@ -2751,6 +2775,188 @@ button{font-family:inherit}
     }
   }, {passive:true});
 })();
+
+// ===== HERO CANDIDATES CAROUSEL — REMPLACE 4 IMAGES =====
+(function(){
+  const viewport = document.getElementById('heroCcViewport');
+  const track = document.getElementById('heroCcTrack');
+  const dotsWrap = document.getElementById('heroCcDots');
+  const progressFill = document.getElementById('heroCcProgress');
+  const prevBtn = document.getElementById('heroCcPrev');
+  const nextBtn = document.getElementById('heroCcNext');
+  if(!viewport || !track) return;
+  const slides = track.querySelectorAll('.hero-cc__slide');
+  if(slides.length<=1){
+    if(dotsWrap) dotsWrap.style.display='none';
+    if(progressFill) progressFill.style.display='none';
+    // still handle lazy for single
+  }
+  let cur=0;
+  let timer=null;
+  const INTERVAL=4200;
+  let progressTimer=null;
+
+  // build dots
+  function buildDots(){
+    if(!dotsWrap) return;
+    dotsWrap.innerHTML='';
+    slides.forEach((_,i)=>{
+      const b=document.createElement('button');
+      b.className='hero-cc__dot'+(i===0?' is-active':'');
+      b.setAttribute('role','tab');
+      b.setAttribute('aria-label','Aller à la candidate '+(i+1));
+      b.addEventListener('click',()=>goTo(i,true));
+      dotsWrap.appendChild(b);
+    });
+  }
+  function updateDots(){
+    if(!dotsWrap) return;
+    dotsWrap.querySelectorAll('.hero-cc__dot').forEach((d,i)=>d.classList.toggle('is-active', i===cur));
+  }
+  function goTo(idx, user=false){
+    if(idx<0) idx=slides.length-1;
+    if(idx>=slides.length) idx=0;
+    cur=idx;
+    track.style.transform='translateX(-'+(cur*100)+'%)';
+    slides.forEach((s,i)=>s.classList.toggle('is-active', i===cur));
+    updateDots();
+    // lazy load current + next
+    [cur, (cur+1)%slides.length].forEach(i=>{
+      const img=slides[i]?.querySelector('img.lazy-img[data-src]');
+      if(img && !img.src){
+        img.src=img.dataset.src;
+      }
+    });
+    resetProgress();
+    if(user) resetTimer();
+    // sync bg slides if same count
+    const bgSlides=document.querySelectorAll('#heroBgSlides .aurora-hero__bg-slide');
+    if(bgSlides.length===slides.length){
+      bgSlides.forEach((b,i)=>b.classList.toggle('is-active', i===cur));
+    }
+  }
+  function resetTimer(){
+    clearInterval(timer);
+    timer=setInterval(()=>goTo(cur+1), INTERVAL);
+  }
+  function resetProgress(){
+    if(!progressFill) return;
+    clearInterval(progressTimer);
+    progressFill.style.transition='none';
+    progressFill.style.width='0%';
+    requestAnimationFrame(()=>{
+      progressFill.style.transition='width '+INTERVAL+'ms linear';
+      progressFill.style.width='100%';
+    });
+  }
+  // events
+  prevBtn?.addEventListener('click',()=>goTo(cur-1,true));
+  nextBtn?.addEventListener('click',()=>goTo(cur+1,true));
+  // swipe
+  let sx=0, sy=0;
+  viewport.addEventListener('touchstart', e=>{
+    sx=e.changedTouches[0].clientX; sy=e.changedTouches[0].clientY;
+  }, {passive:true});
+  viewport.addEventListener('touchend', e=>{
+    const dx=e.changedTouches[0].clientX - sx;
+    const dy=e.changedTouches[0].clientY - sy;
+    if(Math.abs(dx)>46 && Math.abs(dx)>Math.abs(dy)){
+      goTo(dx<0?cur+1:cur-1,true);
+    }
+  }, {passive:true});
+  viewport.addEventListener('mouseenter',()=>{
+    clearInterval(timer);
+    if(progressFill) progressFill.style.transition='none';
+  });
+  viewport.addEventListener('mouseleave',()=>{
+    resetTimer();
+    resetProgress();
+  });
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden){ clearInterval(timer); }
+    else { resetTimer(); resetProgress(); }
+  });
+  // init
+  buildDots();
+  goTo(0);
+  resetTimer();
+  resetProgress();
+  // expose for bg sync
+  window.heroCcGoTo=goTo;
+})();
+
+// ===== LAZY LOADING APP-LIKE — CANDIDATES + HERO =====
+(function(){
+  const lazyImgs=document.querySelectorAll('img.lazy-img[data-src], .hero-cc__slide img.lazy-img[data-src]');
+  // First, eagerly load first hero slide (already)
+  const firstHero=document.querySelector('.hero-cc__slide.is-active img.lazy-img[data-src]');
+  if(firstHero && firstHero.dataset.src){
+    firstHero.src=firstHero.dataset.src;
+    firstHero.addEventListener('load',()=>{
+      firstHero.classList.add('is-loaded');
+      firstHero.closest('.hero-cc__slide')?.querySelector('.hero-cc__skeleton')?.remove();
+      firstHero.closest('.candidate-card__photo')?.classList.add('is-loaded');
+    }, {once:true});
+    // if cached
+    if(firstHero.complete) firstHero.classList.add('is-loaded');
+  }
+
+  if('IntersectionObserver' in window){
+    const io=new IntersectionObserver((entries)=>{
+      entries.forEach(entry=>{
+        if(entry.isIntersecting){
+          const img=entry.target;
+          const src=img.dataset.src;
+          if(src){
+            // create temp image to handle load
+            const temp=new Image();
+            temp.onload=()=>{
+              img.src=src;
+              img.classList.add('is-loaded');
+              img.closest('.candidate-card__photo')?.classList.add('is-loaded');
+              img.closest('.hero-cc__slide')?.querySelector('.hero-cc__skeleton')?.remove();
+              img.removeAttribute('data-src');
+            };
+            temp.onerror=()=>{
+              // fallback unsplash already handled by onerror attr, but mark loaded
+              img.src=img.dataset.src;
+              img.classList.add('is-loaded');
+              img.closest('.candidate-card__photo')?.classList.add('is-loaded');
+            };
+            temp.src=src;
+          }
+          io.unobserve(img);
+        }
+      });
+    }, {rootMargin:'200px 0px', threshold:0.08});
+
+    lazyImgs.forEach(img=>{
+      if(img===firstHero) return; // already handled
+      if(img.complete && img.src) {
+        img.classList.add('is-loaded');
+        img.closest('.candidate-card__photo')?.classList.add('is-loaded');
+      } else {
+        io.observe(img);
+      }
+      // fallback for cached images that fire load before observer
+      img.addEventListener('load',()=>{
+        img.classList.add('is-loaded');
+        img.closest('.candidate-card__photo')?.classList.add('is-loaded');
+        img.closest('.hero-cc__slide')?.querySelector('.hero-cc__skeleton')?.remove();
+      }, {once:true});
+    });
+  } else {
+    // no IO, load all
+    lazyImgs.forEach(img=>{
+      if(img.dataset.src){
+        img.src=img.dataset.src;
+        img.classList.add('is-loaded');
+        img.closest('.candidate-card__photo')?.classList.add('is-loaded');
+      }
+    });
+  }
+})();
+
 
 // ===== TICKER + PODIUM ===
 function copyVoteLink(btn){
