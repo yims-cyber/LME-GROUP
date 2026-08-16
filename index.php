@@ -636,17 +636,93 @@ button{font-family:inherit}
   .aurora-hero__live{margin-left:0;max-width:560px}
   .aurora-hero__meta{gap:12px}
 }
+/* Phone: hide carousel, keep background */
+@media(max-width:768px){
+  .hero-cc{display:none!important}
+  .aurora-hero__right{display:contents}
+  .aurora-hero__live{max-width:100%;margin:0}
+}
+/* Pro Mobile App Design for Hero */
 @media(max-width:640px){
-  .aurora-hero__shell{padding:22px 16px 22px;gap:18px}
-  .aurora-hero__title{font-size:clamp(2.2rem, 9vw, 3.1rem)}
-  .aurora-hero__desc{font-size:.84rem;margin:10px 0 18px}
-  .aurora-hero__actions{flex-direction:column}
-  .aurora-hero__actions a{width:100%;justify-content:center}
-  .hero-cc{max-width:100%;border-radius:16px}
-  .hero-cc__viewport{aspect-ratio:3/4.2;max-height:72vh}
-  .hero-cc__name{font-size:1.05rem}
-  .aurora-hero__meta{flex-direction:column;align-items:flex-start;gap:10px;padding-top:16px;margin-top:18px}
-  .aurora-hero__live{padding:9px 10px}
+  .aurora-hero{
+    min-height:92vh;min-height:92dvh;
+    padding-top:56px;
+    display:flex;align-items:flex-end;
+    border-bottom:none;
+  }
+  .aurora-hero__bg-slide{filter:brightness(.68) saturate(1.08) contrast(1.06);background-position:center 12%}
+  .aurora-hero__bg-overlay{
+    background:
+      linear-gradient(180deg, rgba(5,11,22,.08) 0%, rgba(5,11,22,.16) 22%, rgba(5,11,22,.58) 56%, rgba(5,11,22,.92) 92%),
+      linear-gradient(90deg, rgba(5,11,22,.18) 0%, rgba(5,11,22,.08) 100%);
+  }
+  .aurora-hero__shell{
+    padding:16px 16px calc(20px + env(safe-area-inset-bottom));
+    gap:14px;
+    align-items:flex-end;
+    width:100%;
+  }
+  .aurora-hero__left{
+    width:100%;gap:12px;
+    padding:18px 16px 16px;
+    border-radius:20px;
+    background:linear-gradient(180deg, rgba(7,26,61,.18) 0%, rgba(5,11,22,.52) 100%);
+    border:1px solid rgba(255,255,255,.10);
+    backdrop-filter:blur(18px) saturate(1.2);-webkit-backdrop-filter:blur(18px) saturate(1.2);
+    box-shadow:0 20px 48px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.08);
+  }
+  .aurora-hero__eyebrow{
+    padding:6px 10px;gap:6px;margin-bottom:4px;
+    background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);
+    backdrop-filter:blur(12px);
+  }
+  .aurora-hero__eyebrow-concours{font-size:.58rem;letter-spacing:.11em}
+  .aurora-hero__eyebrow-status{font-size:.58rem}
+  .aurora-hero__lockup{margin-bottom:0;gap:10px}
+  .aurora-hero__lockup-logo{width:44px;height:44px;border-radius:11px;padding:3px;box-shadow:0 6px 18px rgba(0,0,0,.22)}
+  .aurora-hero__lockup-logo img{width:38px;height:38px}
+  .aurora-hero__title{font-size:clamp(2.35rem, 10.5vw, 3.15rem);line-height:.88;letter-spacing:-.03em}
+  .aurora-hero__devise{margin:8px 0 4px;gap:8px}
+  .aurora-hero__devise-line{width:20px}
+  .aurora-hero__devise-text{font-size:.78rem;letter-spacing:.06em}
+  .aurora-hero__desc{
+    font-size:.88rem;line-height:1.6;
+    margin:6px 0 14px;max-width:100%;
+    color:rgba(255,255,255,.84);text-shadow:0 1px 10px rgba(0,0,0,.28);
+    display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;
+  }
+  .aurora-hero__actions{flex-direction:column;gap:10px;margin-top:2px}
+  .aurora-hero__actions a{width:100%;justify-content:center;min-height:48px;border-radius:12px;font-size:.9rem;font-weight:600;letter-spacing:-.01em;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+  .aurora-hero__actions .btn-primary{background:linear-gradient(135deg, #D4AF37 0%, #F3D77A 100%);color:#050B16;border:none;box-shadow:0 10px 28px rgba(212,175,55,.32)}
+  .aurora-hero__actions .btn-ghost{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(12px);color:#fff}
+  .aurora-hero__meta{
+    flex-direction:row;flex-wrap:nowrap;gap:8px;
+    margin-top:14px;padding-top:14px;
+    border-top:1px solid rgba(255,255,255,.08);
+    overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;
+    padding-bottom:2px;
+  }
+  .aurora-hero__meta::-webkit-scrollbar{display:none}
+  .aurora-hero__meta-item{
+    flex:0 0 auto;min-width:96px;
+    padding:10px 10px;border-radius:12px;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);
+    backdrop-filter:blur(10px);gap:8px;
+  }
+  .aurora-hero__meta-icon{width:28px;height:28px;border-radius:8px}
+  .aurora-hero__meta-label{font-size:.56rem}
+  .aurora-hero__meta-value{font-size:.72rem}
+  .aurora-hero__right{width:100%;gap:10px}
+  .hero-cc{display:none!important}
+  .aurora-hero__live{
+    width:100%;max-width:100%;margin:0;
+    padding:10px 12px;border-radius:14px;
+    background:rgba(5,11,22,.48);border:1px solid rgba(255,255,255,.10);
+    backdrop-filter:blur(14px);box-shadow:0 10px 32px rgba(0,0,0,.24);
+  }
+  .aurora-hero__live-label{font-size:.60rem}
+  .aurora-hero__live-title{font-size:.78rem;line-height:1.3;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .aurora-hero__live-progress{max-width:72px}
 }
 @media(min-width:1120px){.aurora-hero__shell{padding-left:0;padding-right:0}}
 
@@ -2743,18 +2819,19 @@ button{font-family:inherit}
   goTo(0);
 })();
 
-// ===== HERO BG CAROUSEL — FOND PC & MOBILE (désactivé si hero-cc existe, géré par hero-cc) =====
+// ===== HERO BG CAROUSEL — FOND PC & MOBILE =====
 (function(){
   const bg = document.querySelectorAll('#heroBgSlides .aurora-hero__bg-slide');
   if(!bg.length || bg.length<=1) return;
-  // Si le nouveau carousel candidates existe, il gère déjà le fond
-  if(document.getElementById('heroCandidatesCarousel')){
-    // ne pas lancer timer auto, laisser hero-cc sync
-    return;
-  }
+  // Si hero-cc visible, il sync le fond, sinon bg tourne seul (mobile où hero-cc caché)
+  const heroCcEl = document.getElementById('heroCandidatesCarousel');
   let cur = 0;
   const INTERVAL = 5200;
   let timer = setInterval(()=> {
+    // si hero-cc visible (desktop), laisser hero-cc gérer le fond
+    const cc = document.getElementById('heroCandidatesCarousel');
+    const ccVisible = cc && cc.offsetParent !== null && window.innerWidth > 768;
+    if(ccVisible) return;
     bg[cur].classList.remove('is-active');
     cur = (cur+1)%bg.length;
     bg[cur].classList.add('is-active');
