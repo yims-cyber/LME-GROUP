@@ -1,5 +1,15 @@
 <?php
 function esc($s) { return htmlspecialchars((string)($s ?? ''), ENT_QUOTES, 'UTF-8'); }
+function getCandidatePhotoUrl($photo_officielle) {
+    if (empty($photo_officielle)) return 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600&h=750&fit=crop';
+    $p = ltrim($photo_officielle, '/');
+    if (strpos($p, 'admin/') === 0) $p = substr($p, 6);
+    $p = ltrim($p, '/');
+    if (strpos($p, 'uploads/') !== 0) $p = 'uploads/' . $p;
+    if (!defined('STOCKAGE_DOMAIN')) define('STOCKAGE_DOMAIN','https://gestion.zaloriatech.com');
+    return STOCKAGE_DOMAIN . '/admin/' . $p;
+}
+if (!defined('STOCKAGE_DOMAIN')) define('STOCKAGE_DOMAIN','https://gestion.zaloriatech.com');
 
 $dbHost = 'localhost:3306';
 $dbName = 'mayi1275_zaloria_multisysteme';
@@ -15,8 +25,14 @@ try {
 $host = $_SERVER['HTTP_HOST'] ?? '';
 $domain = 'zaloriatech.com';
 $subdomain = '';
-if (preg_match('/^(.*?)\.' . preg_quote($domain, '/') . '$/', $host, $matches)) { $subdomain = $matches[1]; }
-else { $subdomain = 'gestion'; }
+// FIX: force lme-group pour domaines custom, localhost et IP
+if (stripos($host, 'lme-group') !== false || stripos($host, 'aurora') !== false || $host === 'localhost' || $host === '127.0.0.1' || filter_var(explode(':', $host)[0], FILTER_VALIDATE_IP) || strpos($host, 'e2b.dev') !== false) {
+    $subdomain = 'lme-group';
+} else if (preg_match('/^(.*?)\.' . preg_quote($domain, '/') . '$/', $host, $matches)) {
+    $subdomain = $matches[1];
+} else {
+    $subdomain = 'lme-group'; // default LME au lieu de gestion pour éviter fallback site_id=1
+}
 
 $stmtSite = $pdo->prepare("SELECT site_id, nom_entreprise, logo_concours, logo_extension, lien_unique, gestionnaire_id, cree_par, date_creation FROM sites WHERE lien_unique = ?");
 $stmtSite->execute([$subdomain]);
@@ -203,8 +219,7 @@ body { font-family: 'Outfit', sans-serif; background: #080808; color: #fff; marg
                     <?php foreach ($candidates as $cand):
                         $votes = $cand['total_votes'];
                         $pct = $totalVotesAll > 0 ? round(($votes / $totalVotesAll) * 100, 1) : 0;
-                        $photoUrl = '';
-                        if (!empty($cand['photo_officielle'])) { $path = ltrim($cand['photo_officielle'], '/'); if (strpos($path, 'admin/') !== 0) { $path = 'admin/' . $path; } $photoUrl = 'https://gestion.zaloriatech.com/' . $path; }
+                        $photoUrl = getCandidatePhotoUrl($cand['photo_officielle'] ?? '');
                     ?>
                     <div class="cd__card">
                         <div class="cd__photo">

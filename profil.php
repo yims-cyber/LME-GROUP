@@ -16,13 +16,15 @@ try {
 
 // ========== Détection du site via le sous-domaine ==========
 $host = $_SERVER['HTTP_HOST'] ?? '';
-$domain = 'approtech.org'; // domaine principal
+$domain = 'zaloriatech.com';
 $subdomain = '';
-
-if (preg_match('/^(.*?)\.' . preg_quote($domain, '/') . '$/', $host, $matches)) {
+// FIX: force lme-group pour domaines custom, localhost et IP
+if (stripos($host, 'lme-group') !== false || stripos($host, 'aurora') !== false || $host === 'localhost' || $host === '127.0.0.1' || filter_var(explode(':', $host)[0], FILTER_VALIDATE_IP) || strpos($host, 'e2b.dev') !== false) {
+    $subdomain = 'lme-group';
+} else if (preg_match('/^(.*?)\.' . preg_quote($domain, '/') . '$/', $host, $matches)) {
     $subdomain = $matches[1];
 } else {
-    $subdomain = 'miss'; // défaut
+    $subdomain = 'lme-group'; // default LME au lieu de gestion pour éviter fallback site_id=1
 }
 
 // Recherche du site correspondant
@@ -45,7 +47,7 @@ $siteLogoConcours = $siteData['logo_concours'];
 $siteLogoExtension = $siteData['logo_extension'];
 $siteLien = $siteData['lien_unique'];
 
-define('STOCKAGE_DOMAIN', 'https://miss.approtech.org');
+define('STOCKAGE_DOMAIN', 'https://gestion.zaloriatech.com');
 
 // ========== Récupération du code candidat depuis l'URL ==========
 $code = isset($_GET['code']) ? trim($_GET['code']) : null;
@@ -111,14 +113,14 @@ if ($concours_id) {
 // Si une étape active existe, on prend la première pour le lien de vote
 $etape_id = count($etapes) > 0 ? $etapes[0]['etape_id'] : null;
 
-// Fonction pour construire l'URL de la photo
+// Fonction pour construire l'URL de la photo - fix robuste avec fallback
 function getPhotoUrl($photo_officielle) {
-    if (empty($photo_officielle)) return 'placeholder.jpg';
-    $path = ltrim($photo_officielle, '/');
-    if (strpos($path, 'admin/') !== 0) {
-        $path = 'admin/' . $path;
-    }
-    return STOCKAGE_DOMAIN . '/' . $path;
+    if (empty($photo_officielle)) return 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600&h=750&fit=crop';
+    $p = ltrim($photo_officielle, '/');
+    if (strpos($p, 'admin/') === 0) $p = substr($p, 6);
+    $p = ltrim($p, '/');
+    if (strpos($p, 'uploads/') !== 0) $p = 'uploads/' . $p;
+    return STOCKAGE_DOMAIN . '/admin/' . $p;
 }
 
 // Fonction d'échappement

@@ -19,10 +19,13 @@ $host = $_SERVER['HTTP_HOST'] ?? '';
 $domain = 'zaloriatech.com';
 $subdomain = '';
 
-if (preg_match('/^(.*?)\.' . preg_quote($domain, '/') . '$/', $host, $matches)) {
+// FIX: force lme-group pour domaines custom, localhost et IP
+if (stripos($host, 'lme-group') !== false || stripos($host, 'aurora') !== false || $host === 'localhost' || $host === '127.0.0.1' || filter_var($host, FILTER_VALIDATE_IP)) {
+    $subdomain = 'lme-group';
+} else if (preg_match('/^(.*?)\.' . preg_quote($domain, '/') . '$/', $host, $matches)) {
     $subdomain = $matches[1];
 } else {
-    $subdomain = 'gestion';
+    $subdomain = 'lme-group'; // default LME au lieu de gestion pour éviter fallback site_id=1
 }
 
 $stmtSite = $pdo->prepare("SELECT site_id, nom_entreprise, logo_concours, logo_extension, lien_unique, gestionnaire_id, cree_par, date_creation FROM sites WHERE lien_unique = ?");
@@ -256,6 +259,20 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'votes_data') {
     exit;
 }
 function esc($s) { return htmlspecialchars((string)($s ?? ''), ENT_QUOTES, 'UTF-8'); }
+function getCandidatePhotoUrl($photo_officielle) {
+    if (empty($photo_officielle)) return '';
+    $p = ltrim($photo_officielle, '/');
+    // enlève admin/ si déjà présent pour éviter double
+    if (strpos($p, 'admin/') === 0) $p = substr($p, 6);
+    // nettoie
+    $p = ltrim($p, '/');
+    if (strpos($p, 'uploads/') !== 0) {
+        $p = 'uploads/' . $p;
+    }
+    // STOCKAGE_DOMAIN déjà défini globalement
+    if (!defined('STOCKAGE_DOMAIN')) return $p;
+    return STOCKAGE_DOMAIN . '/admin/' . $p;
+}
 $auroraYear = '2026';
 $auroraTitle = 'MISS AURORA RDC';
 ?>
@@ -1434,7 +1451,8 @@ button{font-family:inherit}
     <div class="aurora-hero__bg-gradient"></div>
     <div class="aurora-hero__bg-slides" id="heroBgSlides" aria-hidden="true">
       <?php if(!empty($heroCandidates)): foreach($heroCandidates as $i=>$hc):
-        $bg=''; if(!empty($hc['photo_officielle'])){ $bt=ltrim($hc['photo_officielle'],'/'); if(strpos($bt,'admin/')!==0) $bt='admin/'.$bt; $bg=STOCKAGE_DOMAIN.'/'.$bt; } else { $bg='https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=1200&h=800&fit=crop'; }
+        $bg = getCandidatePhotoUrl($hc['photo_officielle'] ?? '');
+        if (empty($bg)) { $bg='https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=1200&h=800&fit=crop'; }
       ?>
         <div class="aurora-hero__bg-slide <?= $i===0?'is-active':'' ?>" style="background-image:url('<?= esc($bg) ?>')"></div>
       <?php endforeach; else: ?>
@@ -1974,11 +1992,12 @@ button{font-family:inherit}
         <div class="candidates-grid">
           <?php foreach($candidates as $cand):
             $votes=$cand['total_votes']; $pct=$totalVotesAll>0? round(($votes/$totalVotesAll)*100,1):0;
-            $photoUrl=''; if(!empty($cand['photo_officielle'])){ $p=ltrim($cand['photo_officielle'],'/'); if(strpos($p,'admin/')!==0) $p='admin/'.$p; $photoUrl=STOCKAGE_DOMAIN.'/'.$p;}
+            $photoUrl = getCandidatePhotoUrl($cand['photo_officielle'] ?? '');
+            if (empty($photoUrl)) $photoUrl = 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600&h=750&fit=crop';
           ?>
           <div class="candidate-card">
             <div class="candidate-card__photo">
-              <img src="<?= esc($photoUrl) ?>?v=<?= time() ?>" alt="<?= esc($cand['nom_complet']) ?>" loading="lazy">
+              <img src="<?= esc($photoUrl) ?>?v=<?= time() ?>" alt="<?= esc($cand['nom_complet']) ?>" loading="lazy" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600&h=750&fit=crop'">
               <div class="candidate-card__veil"></div>
               <span class="candidate-card__num">N° <?= esc($cand['code_participante']) ?></span>
               <span class="candidate-card__tag">Candidate <?= esc($auroraYear) ?></span>
@@ -2019,10 +2038,11 @@ button{font-family:inherit}
         <div class="candidates-grid" style="margin-top:24px">
           <?php foreach($allCandidates as $cand):
             $votes=$cand['total_votes']; $pct=$totalVotesAll>0? round(($votes/$totalVotesAll)*100,1):0;
-            $photoUrl=''; if(!empty($cand['photo_officielle'])){ $p=ltrim($cand['photo_officielle'],'/'); if(strpos($p,'admin/')!==0) $p='admin/'.$p; $photoUrl=STOCKAGE_DOMAIN.'/'.$p;}
+            $photoUrl = getCandidatePhotoUrl($cand['photo_officielle'] ?? '');
+            if (empty($photoUrl)) $photoUrl = 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600&h=750&fit=crop';
           ?>
             <div class="candidate-card">
-              <div class="candidate-card__photo"><img src="<?= esc($photoUrl) ?>?v=<?= time() ?>" alt="<?= esc($cand['nom_complet']) ?>" loading="lazy"><div class="candidate-card__veil"></div><span class="candidate-card__num">N° <?= esc($cand['code_participante']) ?></span><span class="candidate-card__city"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> <?= esc($cand['ville_origine']??'Kinshasa') ?></span></div>
+              <div class="candidate-card__photo"><img src="<?= esc($photoUrl) ?>?v=<?= time() ?>" alt="<?= esc($cand['nom_complet']) ?>" loading="lazy" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600&h=750&fit=crop'"><div class="candidate-card__veil"></div><span class="candidate-card__num">N° <?= esc($cand['code_participante']) ?></span><span class="candidate-card__city"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> <?= esc($cand['ville_origine']??'Kinshasa') ?></span></div>
               <div class="candidate-card__body"><h3 class="candidate-card__name"><?= esc($cand['nom_complet']) ?></h3><div class="candidate-card__stats"><div class="candidate-card__metrics"><span class="candidate-card__metric"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> <?= $votes ?> votes</span></div><div><div class="candidate-card__score-head"><span>Popularité</span><strong><?= $pct ?>%</strong></div><div class="candidate-card__track"><div class="candidate-card__fill" style="--score:<?= $pct ?>%"></div></div></div></div><div class="candidate-card__actions"><a href="profil.php?code=<?= urlencode($cand['code_participante']) ?>" class="candidate-card__btn candidate-card__btn--ghost">Profil</a><a href="voter.php?candidat=<?= urlencode($cand['participante_id']) ?>&concours_id=<?= $concoursId ?>" class="candidate-card__btn candidate-card__btn--primary">Voter</a></div></div>
             </div>
           <?php endforeach; ?>

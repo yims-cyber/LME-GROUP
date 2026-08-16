@@ -15,8 +15,14 @@ try {
 $host = $_SERVER['HTTP_HOST'] ?? '';
 $domain = 'zaloriatech.com';
 $subdomain = '';
-if (preg_match('/^(.*?)\.' . preg_quote($domain, '/') . '$/', $host, $matches)) { $subdomain = $matches[1]; }
-else { $subdomain = 'gestion'; }
+// FIX: force lme-group pour domaines custom, localhost et IP
+if (stripos($host, 'lme-group') !== false || stripos($host, 'aurora') !== false || $host === 'localhost' || $host === '127.0.0.1' || filter_var(explode(':', $host)[0], FILTER_VALIDATE_IP) || strpos($host, 'e2b.dev') !== false) {
+    $subdomain = 'lme-group';
+} else if (preg_match('/^(.*?)\.' . preg_quote($domain, '/') . '$/', $host, $matches)) {
+    $subdomain = $matches[1];
+} else {
+    $subdomain = 'lme-group'; // default LME au lieu de gestion pour éviter fallback site_id=1
+}
 
 $stmtSite = $pdo->prepare("SELECT site_id, nom_entreprise, logo_concours, logo_extension, lien_unique, gestionnaire_id, cree_par, date_creation FROM sites WHERE lien_unique = ?");
 $stmtSite->execute([$subdomain]);

@@ -18,10 +18,13 @@ try {
 $host = $_SERVER['HTTP_HOST'] ?? '';
 $domain = 'zaloriatech.com';
 $subdomain = '';
-if (preg_match('/^(.*?)\.' . preg_quote($domain, '/') . '$/', $host, $matches)) {
+// FIX: force lme-group pour domaines custom, localhost et IP
+if (stripos($host, 'lme-group') !== false || stripos($host, 'aurora') !== false || $host === 'localhost' || $host === '127.0.0.1' || filter_var(explode(':', $host)[0], FILTER_VALIDATE_IP) || strpos($host, 'e2b.dev') !== false) {
+    $subdomain = 'lme-group';
+} else if (preg_match('/^(.*?)\.' . preg_quote($domain, '/') . '$/', $host, $matches)) {
     $subdomain = $matches[1];
 } else {
-    $subdomain = 'gestion';
+    $subdomain = 'lme-group'; // default LME au lieu de gestion pour éviter fallback site_id=1
 }
 
 // Récupération du site correspondant au sous-domaine
