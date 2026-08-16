@@ -1,0 +1,18 @@
+# Logs de debug paiement
+*.log
+*debug*.log
+*callback*.log
+*unipesa*.log
+*chariow*.log
+
+# Fichiers temporaires
+.well-known/
+cgi-bin/
+texture.jpg
+last_sync_date.txt
+.DS_Store
+Thumbs.db
+
+# Secrets locaux (si tu en ajoutes)
+.env
+config.local.php
