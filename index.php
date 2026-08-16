@@ -587,27 +587,29 @@ button{font-family:inherit}
   backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
   box-shadow:0 18px 48px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.08);
 }
-.hero-cc__viewport{position:relative;overflow:hidden;aspect-ratio:4/3.2;background:#0B1E42}
+.hero-cc__viewport{position:relative;overflow:hidden;aspect-ratio:3/4.2;background:#071A3D;max-height:680px}
 .hero-cc__track{display:flex;transition:transform .6s cubic-bezier(.32,0,.67,0);will-change:transform;height:100%}
-.hero-cc__slide{flex:0 0 100%;position:relative;overflow:hidden;background:#0B1E42}
-.hero-cc__slide img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 18%;transition:transform .8s, filter .4s;filter:saturate(1.02) brightness(1.02)}
-.hero-cc__slide.is-active img{transform:scale(1.02)}
-.hero-cc__fade{position:absolute;inset:0;background:linear-gradient(180deg, rgba(5,11,22,.02) 10%, rgba(5,11,22,.08) 40%, rgba(5,11,22,.88) 100%);z-index:1}
-.hero-cc__info{position:absolute;left:14px;right:14px;bottom:14px;z-index:2;display:flex;flex-direction:column;gap:6px}
+.hero-cc__slide{flex:0 0 100%;position:relative;overflow:hidden;background:#071A3D;display:flex;align-items:center;justify-content:center}
+.hero-cc__bg{position:absolute;inset:-12%;background-size:cover;background-position:center 20%;filter:blur(22px) brightness(.72) saturate(1.2);transform:scale(1.12);opacity:.85;z-index:0;transition:opacity .5s}
+.hero-cc__slide img{position:relative;z-index:1;width:100%;height:100%;object-fit:contain;object-position:center top;background:transparent;transition:transform .8s, filter .4s, opacity .45s;filter:saturate(1.03) brightness(1.02);opacity:0}
+.hero-cc__slide img.is-loaded{opacity:1}
+.hero-cc__slide.is-active img{transform:scale(1.01)}
+.hero-cc__fade{position:absolute;inset:0;background:linear-gradient(180deg, rgba(5,11,22,.02) 8%, rgba(5,11,22,.06) 36%, rgba(5,11,22,.88) 92%);z-index:2;pointer-events:none}
+.hero-cc__info{position:absolute;left:14px;right:14px;bottom:14px;z-index:3;display:flex;flex-direction:column;gap:6px}
 .hero-cc__name{font-family:var(--font-serif);font-size:1.22rem;font-weight:700;color:#fff;line-height:1.1;text-shadow:0 2px 12px rgba(0,0,0,.4)}
 .hero-cc__meta{display:flex;flex-wrap:wrap;gap:6px}
 .hero-cc__chip{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:100px;background:rgba(5,11,22,.48);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(8px);color:#fff;font-family:var(--font-ui);font-size:.62rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
 .hero-cc__chip-dot{width:5px;height:5px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px rgba(212,175,55,.6)}
-.hero-cc__nav{position:absolute;top:12px;right:12px;z-index:3;display:flex;gap:6px}
+.hero-cc__nav{position:absolute;top:12px;right:12px;z-index:4;display:flex;gap:6px}
 .hero-cc__btn{width:32px;height:32px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:rgba(5,11,22,.42);backdrop-filter:blur(10px);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .18s, transform .16s}
 .hero-cc__btn:hover{background:rgba(255,255,255,.14);transform:translateY(-1px)}
-.hero-cc__dots{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);z-index:3;display:flex;gap:6px;padding:6px 10px;border-radius:100px;background:rgba(5,11,22,.38);border:1px solid rgba(255,255,255,.10);backdrop-filter:blur(10px)}
+.hero-cc__dots{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);z-index:4;display:flex;gap:6px;padding:6px 10px;border-radius:100px;background:rgba(5,11,22,.38);border:1px solid rgba(255,255,255,.10);backdrop-filter:blur(10px)}
 .hero-cc__dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.36);transition:all .22s;cursor:pointer;border:none;padding:0}
 .hero-cc__dot.is-active{width:18px;background:var(--gold);box-shadow:0 0 10px rgba(212,175,55,.5)}
-.hero-cc__progress{position:absolute;left:0;right:0;bottom:0;height:2px;background:rgba(255,255,255,.12);z-index:3}
+.hero-cc__progress{position:absolute;left:0;right:0;bottom:0;height:2px;background:rgba(255,255,255,.12);z-index:4}
 .hero-cc__progress-fill{height:100%;width:0%;background:linear-gradient(90deg, var(--gold), var(--gold-light));transition:width .1s linear}
 /* SKELETON APP-LIKE FOR HERO */
-.hero-cc__skeleton{position:absolute;inset:0;background:linear-gradient(90deg, #0B1E42 25%, #123063 37%, #0B1E42 63%);background-size:400% 100%;animation:heroShine 1.4s ease infinite;z-index:0}
+.hero-cc__skeleton{position:absolute;inset:0;background:linear-gradient(90deg, #0B1E42 25%, #123063 37%, #0B1E42 63%);background-size:400% 100%;animation:heroShine 1.4s ease infinite;z-index:1}
 @keyframes heroShine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
 /* keep old mosaic selectors for backwards compat (hidden) */
 .aurora-hero__mosaic{display:none!important}
@@ -641,7 +643,7 @@ button{font-family:inherit}
   .aurora-hero__actions{flex-direction:column}
   .aurora-hero__actions a{width:100%;justify-content:center}
   .hero-cc{max-width:100%;border-radius:16px}
-  .hero-cc__viewport{aspect-ratio:4/3.4}
+  .hero-cc__viewport{aspect-ratio:3/4.2;max-height:72vh}
   .hero-cc__name{font-size:1.05rem}
   .aurora-hero__meta{flex-direction:column;align-items:flex-start;gap:10px;padding-top:16px;margin-top:18px}
   .aurora-hero__live{padding:9px 10px}
@@ -1532,8 +1534,9 @@ button{font-family:inherit}
               $ccCode = $hc['code_participante'] ?? $ci+1;
             ?>
             <div class="hero-cc__slide <?= $ci===0?'is-active':'' ?>" role="group" aria-roledescription="slide" aria-label="<?= $ci+1 ?> sur <?= count($heroCandidates) ?>">
+              <div class="hero-cc__bg" style="background-image:url('<?= esc($ccPhoto) ?>')" aria-hidden="true"></div>
               <span class="hero-cc__skeleton" aria-hidden="true"></span>
-              <img class="lazy-img" data-src="<?= esc($ccPhoto) ?>?v=<?= time() ?>" alt="<?= esc($hc['nom_complet']) ?>" loading="<?= $ci===0?'eager':'lazy' ?>" decoding="async" fetchpriority="<?= $ci===0?'high':'low' ?>" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600&h=750&fit=crop'">
+              <img class="lazy-img" data-src="<?= esc($ccPhoto) ?>?v=<?= time() ?>" alt="<?= esc($hc['nom_complet']) ?>" loading="<?= $ci===0?'eager':'lazy' ?>" decoding="async" fetchpriority="<?= $ci===0?'high':'low' ?>" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600&h=750&fit=crop';this.classList.add('is-loaded')">
               <div class="hero-cc__fade" aria-hidden="true"></div>
               <div class="hero-cc__info">
                 <div class="hero-cc__name"><?= esc($hc['nom_complet']) ?></div>
@@ -1546,8 +1549,9 @@ button{font-family:inherit}
             </div>
             <?php endforeach; else: ?>
             <div class="hero-cc__slide is-active">
+              <div class="hero-cc__bg" style="background-image:url('https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600&h=750&fit=crop')" aria-hidden="true"></div>
               <span class="hero-cc__skeleton"></span>
-              <img src="https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600&h=750&fit=crop" alt="Miss Aurora RDC" loading="eager">
+              <img class="lazy-img is-loaded" src="https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600&h=750&fit=crop" alt="Miss Aurora RDC" loading="eager">
               <div class="hero-cc__fade"></div>
               <div class="hero-cc__info"><div class="hero-cc__name">Miss Aurora RDC</div><div class="hero-cc__meta"><span class="hero-cc__chip">Édition <?= esc($auroraYear) ?></span></div></div>
             </div>
