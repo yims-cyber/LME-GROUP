@@ -2,7 +2,7 @@
 // vote1.php — Miss Aurora RDC 2026 — Vote avec Mobile Money (Unipesa) + Carte Visa/Mastercard (Maishapay PRODUCTION)
 // Clone de voter.php + ajout paiement carte via Maishapay Checkout PRODUCTION
 // PRODUCTION Keys: MP-LIVEPK-Dcx4lX0$... / MP-LIVEPK-1yVfuv1t2v... - GatewayMode 1 LIVE
-// Sécurité: secret jamais exposé côté client JS, via voter_checkout.php serveur, logs masqués, .htaccess deny logs
+// Sécurité: secret jamais exposé côté client JS, via vote_checkout.php serveur, logs masqués, .htaccess deny logs
 
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
@@ -600,7 +600,7 @@ h1 em{font-style:italic;font-weight:700;color:var(--gold-lt)}
     <button type="button" id="payBtn" class="btn btn-gold btn--full">💳 Payer maintenant — Mobile Money</button>
     <p style="text-align:center;font-family:var(--font-ui);font-size:.70rem;color:var(--muted2);margin-top:10px" id="payHint">Paiement sécurisé • Mobile Money • Carte bancaire 3D Secure</p>
 
-    <!-- Ancien form Checkout direct (exposait secret) supprimé pour sécurité. Maintenant redirection via voter_checkout.php serveur -->
+    <!-- Ancien form Checkout direct (exposait secret) supprimé pour sécurité. Maintenant redirection via vote_checkout.php serveur -->
     <form id="maishaCheckoutForm" style="display:none"></form>
   </div>
 
@@ -683,7 +683,7 @@ h1 em{font-style:italic;font-weight:700;color:var(--gold-lt)}
     <div class="receipt-actions">
       <button class="btn btn-gold" onclick="downloadReceiptPDF()">📥 Télécharger le reçu (PDF)</button>
       <button class="btn btn-outline" onclick="window.print()">🖨️ Imprimer</button>
-      <a href="voter.php?candidat=<?= $candidate_id ?>&concours_id=<?= $concours_id ?>&etape_id=<?= $etape_id ?>" class="btn btn-outline">↩ Voter à nouveau</a>
+      <a href="vote.php?candidat=<?= $candidate_id ?>&concours_id=<?= $concours_id ?>&etape_id=<?= $etape_id ?>" class="btn btn-outline">↩ Voter à nouveau</a>
       <a href="index.php#candidates" class="btn btn-outline">Voir classement</a>
     </div>
   </div>
@@ -934,7 +934,7 @@ document.getElementById('cancelBtn')?.addEventListener('click', async()=>{
   if(!confirm('Annuler ce paiement et marquer comme échoué pour pouvoir réessayer ?')) return;
   try{
     const fd=new FormData(); fd.append('action','cancel_payment'); fd.append('reference',ref);
-    const res=await fetch('voter_api.php',{method:'POST',body:fd});
+    const res=await fetch('vote_api.php',{method:'POST',body:fd});
     const data=await res.json();
     if(data.success){
       if(pollInterval) clearInterval(pollInterval);
@@ -972,7 +972,7 @@ payBtn.addEventListener('click', async()=>{
     fd.append('customer_name',CANDIDATE_NAME);
 
     try{
-      const resp=await fetch('voter_api.php',{method:'POST',body:fd});
+      const resp=await fetch('vote_api.php',{method:'POST',body:fd});
       const data=await resp.json();
       if(!data.success){
         showFormBlock(); showError('err-global',data.message||'Erreur inconnue.'); payBtn.disabled=false; return;
@@ -1005,15 +1005,15 @@ payBtn.addEventListener('click', async()=>{
     fd.append('phone',phoneCard);
 
     try{
-      const resp=await fetch('voter_api.php',{method:'POST',body:fd});
+      const resp=await fetch('vote_api.php',{method:'POST',body:fd});
       const data=await resp.json();
       if(!data.success){
         showFormBlock(); showError('err-global',data.message||'Erreur carte.'); payBtn.disabled=false; return;
       }
       showLoading('Redirection sécurisée vers paiement carte…','Référence: '+data.reference+' • Vous allez saisir votre carte Visa/Mastercard sur page sécurisée 3D Secure (sans exposer clés marchand).');
       lastReference = data.reference;
-      // SECURITE: redirection vers voter_checkout.php qui fait POST serveur avec secret masqué
-      const redirectUrl = data.checkout_redirect_url || ('voter_checkout.php?ref='+encodeURIComponent(data.reference));
+      // SECURITE: redirection vers vote_checkout.php qui fait POST serveur avec secret masqué
+      const redirectUrl = data.checkout_redirect_url || ('vote_checkout.php?ref='+encodeURIComponent(data.reference));
       setTimeout(()=>{ window.location.href = redirectUrl; }, 1200);
     }catch(e){
       console.error(e);
@@ -1029,7 +1029,7 @@ function startPolling(reference){
     attempts++;
     try{
       const fd=new FormData(); fd.append('action','check_payment'); fd.append('reference',reference);
-      const res=await fetch('voter_api.php',{method:'POST',body:fd});
+      const res=await fetch('vote_api.php',{method:'POST',body:fd});
       const info=await res.json();
       if(info.statut==='confirme'){
         clearInterval(pollInterval);
@@ -1196,7 +1196,7 @@ function fillReceipt(ref,statut,details){
 async function updateVotesActuels(){
   try{
     const fd=new FormData(); fd.append('action','get_realtime_votes'); fd.append('evenement_id',CONCOURS_ID);
-    const resp=await fetch('voter_api.php',{method:'POST',body:fd});
+    const resp=await fetch('vote_api.php',{method:'POST',body:fd});
     const data=await resp.json();
     if(data.success && data.votes_per_candidate[CANDIDATE_ID]!==undefined){
       document.getElementById('votes-actuels').textContent=data.votes_per_candidate[CANDIDATE_ID];

@@ -1,7 +1,7 @@
 <?php
 /**
- * voter_api.php — API Vote avec séparation claire:
- *  - Mobile Money = Unipesa/Avadapay (comme voter_api.php original) - provider_id 9/10/17/19
+ * vote_api.php — API Vote avec séparation claire:
+ *  - Mobile Money = Unipesa/Avadapay (comme vote_api.php original) - provider_id 9/10/17/19
  *  - Carte Visa/Mastercard = Maishapay uniquement (REST chanel CARD + Checkout)
  * Docs Maishapay: https://www.maishapay.net/api_docs/ApiRest.html et Checkout
  * Sandbox Maishapay testé:
@@ -247,7 +247,7 @@ function checkEtape(PDO $pdo, int $eid, int $cid): array {
     return ['success'=>true];
 }
 
-/* ===== CALLBACK UNIPESA (ancien) - conservé pour compatibilité si voter_api.php appelé ===== */
+/* ===== CALLBACK UNIPESA (ancien) - conservé pour compatibilité si vote_api.php appelé ===== */
 $rawInput=file_get_contents('php://input');
 if($rawInput && empty($_POST['action'])){
     $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
@@ -310,7 +310,7 @@ if($rawInput && empty($_POST['action'])){
             echo 'OK'; exit;
         }
     }
-    // Si pas JSON, c'est peut-être form POST de Checkout, on laisse voter_callback.php gérer
+    // Si pas JSON, c'est peut-être form POST de Checkout, on laisse vote_callback.php gérer
     // Mais on répond OK pour éviter retry
     echo 'OK'; exit;
 }
@@ -328,7 +328,7 @@ if($action==='detect_operator'){
     exit;
 }
 
-/* ===== initiate_payment (Mobile Money via Unipesa/Avadapay - comme voter_api.php) ===== */
+/* ===== initiate_payment (Mobile Money via Unipesa/Avadapay - comme vote_api.php) ===== */
 if($action==='initiate_payment'){
     $participanteId=(int)($_POST['candidate_id']??0);
     $concoursId=(int)($_POST['evenement_id']??0);
@@ -422,7 +422,7 @@ if($action==='initiate_payment'){
 
     $host = $_SERVER['HTTP_HOST'] ?? 'lme-group.zaloriatech.com';
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS']!=='off') ? 'https' : 'https';
-    $callbackUrl = $scheme.'://'.$host.'/voter_api.php';
+    $callbackUrl = $scheme.'://'.$host.'/vote_api.php';
 
     $payload=[
         'merchant_id'=>UNIPESA_MERCHANT_ID,
@@ -588,9 +588,9 @@ if($action==='initiate_card_payment'){
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS']!=='off') ? 'https' : 'https';
     // FIX BUG 2026-08-21: callbackUrl simplifié à ?ref=REF seulement
     // Ancien avec &method=card&candidate_id=... causait double ? -> card_type=VISA/?status=200 => status vide => restait en_attente
-    // Maintenant Maishapay fera /voter_callback.php?ref=REF?status=200... et notre parser robuste gère double ? et APPROVED=>confirme
+    // Maintenant Maishapay fera /vote_callback.php?ref=REF?status=200... et notre parser robuste gère double ? et APPROVED=>confirme
     // On récupère candidate_id etc depuis DB via reference, pas besoin de les mettre dans URL
-    $callbackUrl = $scheme.'://'.$host.'/voter_callback.php?ref='.$reference;
+    $callbackUrl = $scheme.'://'.$host.'/vote_callback.php?ref='.$reference;
 
     // 1) On tente d'abord via REST API chanel CARD (testé OK avec callbackUrl)
     $payloadCard=[
@@ -626,7 +626,7 @@ if($action==='initiate_card_payment'){
         }
         $paymentPage = $data['data']['paymentPage'] ?? null;
         $maishaTxId = $data['data']['transactionId'] ?? '';
-        // Sauvegarde payment_page_url et transactionId pour analyse + pour voter_checkout.php
+        // Sauvegarde payment_page_url et transactionId pour analyse + pour vote_checkout.php
         try{
             $pdo->prepare("UPDATE transactions_votes SET payment_page_url=:pp, id_transaction_unipesa=:tid, message_retour=CONCAT(message_retour, ' | Maishapay Tx:', :tid2, ' PP:', :pp2) WHERE numero_reference=:r")
                 ->execute([
@@ -658,14 +658,14 @@ if($action==='initiate_card_payment'){
     }
 
     // PRODUCTION: si paymentPage URL retournée (https://.../CyberSource), on redirige direct vers elle (pas vers vote1_checkout form)
-    // Sinon fallback vers voter_checkout.php qui fait form POST
+    // Sinon fallback vers vote_checkout.php qui fait form POST
     $host = $_SERVER['HTTP_HOST'] ?? 'lme-group.zaloriatech.com';
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS']!=='off') ? 'https' : 'https';
     if($paymentPage && filter_var($paymentPage, FILTER_VALIDATE_URL)){
         $checkoutRedirectUrl = $paymentPage; // CyberSource direct
         file_put_contents(__DIR__.'/maishapay.log', date('c')." CARD PROD paymentPage URL direct: $paymentPage ref=$reference".PHP_EOL, FILE_APPEND);
     } else {
-        $checkoutRedirectUrl = $scheme.'://'.$host.'/voter_checkout.php?ref='.urlencode($reference);
+        $checkoutRedirectUrl = $scheme.'://'.$host.'/vote_checkout.php?ref='.urlencode($reference);
     }
 
     echo json_encode([
@@ -700,7 +700,7 @@ if($action==='check_payment'){
             exit;
         }
 
-        // Si mobile money (Unipesa), on interroge Unipesa status comme voter_api.php
+        // Si mobile money (Unipesa), on interroge Unipesa status comme vote_api.php
         if($row && in_array($row['moyen_paiement'], ['mpesa','airtel','orange','africell','vodacom'])){
             $payload=['merchant_id'=>UNIPESA_MERCHANT_ID,'order_id'=>$reference];
             $payload['signature']=calcUnipesaSignature($payload,UNIPESA_SECRET_KEY);
@@ -733,7 +733,7 @@ if($action==='check_payment'){
             exit;
         }
 
-        // Si carte (Maishapay), pas d'endpoint status public, on se base sur DB mise à jour par voter_callback.php
+        // Si carte (Maishapay), pas d'endpoint status public, on se base sur DB mise à jour par vote_callback.php
         // Mais si en_attente depuis >15min (ex: declined sur CyberSource sans callback), on débloque en echoue pour permettre retry
         if($row){
             if($row['etat_paiement']==='en_attente'){
