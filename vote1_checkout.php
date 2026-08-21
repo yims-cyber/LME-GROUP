@@ -1,8 +1,11 @@
 <?php
-// vote1_checkout.php — Page intermédiaire sécurisée pour paiement carte via Maishapay Checkout
-// Ne expose jamais secretApiKey au client JS, le POST vers Maishapay est fait côté serveur
-// Usage: vote1.php -> initiate_card_payment -> retourne reference -> redirect vers vote1_checkout.php?ref=REF
+// vote1_checkout.php — Redirection sécurisée vers MaishaPay Checkout pour carte
+// Fix CORS + Livewire: on ne fait plus curl serveur qui affiche HTML depuis notre domaine (causait 404 /livewire/ + CORS)
+// Maintenant on affiche un form auto-submit côté client qui POST vers https://marchand.maishapay.online/payment/vers1.0/merchant/checkout
+// Le navigateur va sur le domaine Maishapay, assets chargés depuis Maishapay (même origine) => plus de CORS / Livewire not defined
+// Secret exposé dans form (exigence Maishapay Checkout), mais masqué dans logs + .htaccess deny logs
 
+session_start();
 ini_set('display_errors', 0);
 error_reporting(E_ALL);
 
@@ -28,66 +31,34 @@ function getDB(): PDO {
     return $pdo;
 }
 
-session_start();
 $ref = trim($_GET['ref'] ?? $_GET['reference'] ?? '');
 $token = trim($_GET['_token'] ?? $_GET['token'] ?? '');
 
-// Si _token présent sans ref (cas Maishapay Checkout renvoie ?_token=... sur vote1_checkout.php), on récupère ref depuis session
+// Si _token sans ref, tente session ou dernière transaction
 if(!$ref && $token){
-    // Essaie session
     if(!empty($_SESSION['maishapay_ref'])){
         $ref = $_SESSION['maishapay_ref'];
     } elseif(!empty($_SESSION['maishapay_last_ref'])){
         $ref = $_SESSION['maishapay_last_ref'];
+    } else {
+        try{
+            $pdoTmp = getDB();
+            $stmtLast = $pdoTmp->query("SELECT * FROM transactions_votes WHERE moyen_paiement IN ('carte','visa','mastercard') AND etat_paiement='en_attente' AND initie_le >= DATE_SUB(NOW(), INTERVAL 15 MINUTE) ORDER BY transaction_id DESC LIMIT 1");
+            $last = $stmtLast->fetch();
+            if($last) $ref = $last['numero_reference'];
+        } catch(Exception $e){}
     }
-    // Log pour debug
-    file_put_contents(__DIR__.'/maishapay.log', date('c').' CHECKOUT _token sans ref, token='.$token.' session_ref='.($_SESSION['maishapay_ref']??'none').' tentative ref='.$ref.PHP_EOL, FILE_APPEND);
+    file_put_contents(__DIR__.'/maishapay.log', date('c')." CHECKOUT _token=$token fallback ref=$ref".PHP_EOL, FILE_APPEND);
 }
 
 if(!$ref){
-    // Tentative 2: cherche dernière transaction en attente / récente (10 min) pour cet IP si possible, ou dernière globale
-    try{
-        $pdoTmp = getDB();
-        // Cherche par token si stocké dans message_retour ou id_transaction?
-        if($token){
-            $stmtT = $pdoTmp->prepare("SELECT * FROM transactions_votes WHERE ref_transaction_unipesa LIKE ? OR id_transaction_unipesa LIKE ? OR message_retour LIKE ? ORDER BY transaction_id DESC LIMIT 1");
-            $like = '%'.$token.'%';
-            $stmtT->execute([$like, $like, $like]);
-            $foundByToken = $stmtT->fetch();
-            if($foundByToken){
-                $ref = $foundByToken['numero_reference'];
-                file_put_contents(__DIR__.'/maishapay.log', date('c')." CHECKOUT found ref by token $token => $ref".PHP_EOL, FILE_APPEND);
-            }
-        }
-        if(!$ref){
-            // Dernière transaction carte en attente des 15 dernières minutes
-            $stmtLast = $pdoTmp->query("SELECT * FROM transactions_votes WHERE moyen_paiement IN ('carte','visa','mastercard') AND etat_paiement='en_attente' AND initie_le >= DATE_SUB(NOW(), INTERVAL 15 MINUTE) ORDER BY transaction_id DESC LIMIT 1");
-            $last = $stmtLast->fetch();
-            if($last){
-                $ref = $last['numero_reference'];
-                file_put_contents(__DIR__.'/maishapay.log', date('c')." CHECKOUT fallback to last en_attente ref=$ref for token=$token".PHP_EOL, FILE_APPEND);
-            }
-        }
-    } catch(Exception $e){
-        file_put_contents(__DIR__.'/maishapay.log', date('c')." CHECKOUT error finding ref: ".$e->getMessage().PHP_EOL, FILE_APPEND);
-    }
-
-    if(!$ref){
-        http_response_code(400);
-        echo "<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Référence manquante - LME GROUP</title><style>body{font-family:Inter,sans-serif;background:#050B16;color:#fff;padding:20px;text-align:center} .card{max-width:480px;margin:40px auto;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:24px} a{color:#D4AF37}</style></head><body>";
-        echo "<div class='card'><h2>Référence manquante</h2><p>Le paiement a été initié mais la référence de vote est perdue (token: ".htmlspecialchars(substr($token,0,20))."...).</p>";
-        echo "<p>Cela arrive quand Maishapay renvoie <code>_token</code> au lieu de <code>ref</code>. Votre session a expiré.</p>";
-        echo "<p>Essayez de retrouver votre reçu via votre email ou contactez support.</p>";
-        echo "<p><a href='index.php'>Accueil</a> • <a href='vote1_callback.php'>Callback</a></p>";
-        echo "</div></body></html>";
-        exit;
-    }
+    http_response_code(400);
+    echo "<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Référence manquante</title><style>body{font-family:Inter,sans-serif;background:#050B16;color:#fff;padding:20px;text-align:center}.card{max-width:480px;margin:40px auto;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:24px}a{color:#D4AF37}</style></head><body><div class='card'><h2>Référence manquante</h2><p>Token: ".htmlspecialchars(substr($token,0,30))."</p><p><a href='index.php'>Accueil</a></p></div></body></html>";
+    exit;
 }
 
-// Stocke ref en session pour gérer le cas _token sans ref
 $_SESSION['maishapay_ref'] = $ref;
 $_SESSION['maishapay_last_ref'] = $ref;
-$_SESSION['maishapay_token'] = $token;
 
 try{
     $pdo=getDB();
@@ -96,11 +67,10 @@ try{
     $tx=$stmt->fetch();
     if(!$tx){
         http_response_code(404);
-        echo "<h2>Transaction introuvable: ".htmlspecialchars($ref)."</h2>";
+        echo "<h2>Transaction introuvable: ".htmlspecialchars($ref)."</h2><p><a href='index.php'>Accueil</a></p>";
         exit;
     }
     if($tx['etat_paiement']==='confirme'){
-        // déjà confirmé, redirige vers reçu
         $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS']!=='off') ? 'https' : 'https';
         $host = $_SERVER['HTTP_HOST'] ?? 'lme-group.zaloriatech.com';
         $url = $scheme.'://'.$host.'/vote1.php?candidat='.(int)$tx['participante_id'].'&concours_id='.(int)$tx['concours_id'].'&etape_id='.($tx['etape_id']? (int)$tx['etape_id']:'').'&receipt='.urlencode($ref);
@@ -110,64 +80,63 @@ try{
 
     $host = $_SERVER['HTTP_HOST'] ?? 'lme-group.zaloriatech.com';
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS']!=='off') ? 'https' : 'https';
-    $callbackUrl = $scheme.'://'.$host.'/vote1_callback.php?ref='.$ref;
+    $callbackUrl = $scheme.'://'.$host.'/vote1_callback.php?ref='.urlencode($ref);
 
-    $payload = [
-        'gatewayMode' => MAISHA_GATEWAY_MODE,
-        'publicApiKey' => MAISHA_PUBLIC_KEY,
-        'secretApiKey' => MAISHA_SECRET_KEY,
-        'montant' => (float)$tx['montant_paye'],
-        'devise' => $tx['devise'] ?? 'USD',
-        'callbackUrl' => $callbackUrl,
-    ];
+    // Log masqué
+    file_put_contents(__DIR__.'/maishapay.log', date('c')." CHECKOUT CLIENT FORM ref=$ref montant=".$tx['montant_paye']." devise=".$tx['devise']." callback=$callbackUrl".PHP_EOL, FILE_APPEND);
 
-    // Log masqué (sans secret)
-    $logPayload = $payload;
-    $logPayload['publicApiKey'] = substr($logPayload['publicApiKey'],0,10).'***';
-    $logPayload['secretApiKey'] = '***MASKED***';
-    file_put_contents(__DIR__.'/maishapay.log', date('c').' CHECKOUT SERVER POST ref='.$ref.' payload='.json_encode($logPayload).PHP_EOL, FILE_APPEND);
+    // Affiche page auto-submit vers Maishapay (évite CORS / Livewire not defined car on va sur domaine Maishapay)
+    ?>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Redirection paiement sécurisé - LME GROUP</title>
+<style>
+body{font-family:Inter,Outfit,sans-serif;background:#050B16;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px}
+.card{max-width:460px;width:100%;background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:28px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.spinner{width:44px;height:44px;border:3px solid rgba(212,175,55,.15);border-top-color:#D4AF37;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 18px}
+@keyframes spin{to{transform:rotate(360deg)}}
+h2{font-size:1.3rem;margin-bottom:8px}
+p{color:rgba(255,255,255,.6);font-size:.88rem;line-height:1.5}
+.small{font-size:.72rem;color:rgba(255,255,255,.35);margin-top:14px;word-break:break-all}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="spinner"></div>
+  <h2>Redirection vers paiement sécurisé</h2>
+  <p>Vous allez être redirigé vers la page sécurisée MaishaPay pour saisir votre carte <b><?= htmlspecialchars($tx['provider_maishapay'] ?? 'Visa/Mastercard') ?></b>.<br>
+  Référence: <b><?= htmlspecialchars($ref) ?></b><br>
+  Montant: <b><?= htmlspecialchars($tx['montant_paye']) ?> <?= htmlspecialchars($tx['devise']) ?></b> • <?= (int)$tx['votes_accordes'] ?> votes</p>
+  <p class="small">3D Secure • Chiffré • Ne fermez pas cette page</p>
+  <p class="small" id="countdown">Redirection dans 1s...</p>
+</div>
 
-    $ch=curl_init(MAISHA_CHECKOUT_URL);
-    curl_setopt_array($ch,[
-        CURLOPT_RETURNTRANSFER=>true,
-        CURLOPT_POST=>true,
-        CURLOPT_POSTFIELDS=>http_build_query($payload),
-        CURLOPT_TIMEOUT=>30,
-        CURLOPT_SSL_VERIFYPEER=>false,
-        CURLOPT_FOLLOWLOCATION=>true,
-        CURLOPT_HTTPHEADER=>['Content-Type: application/x-www-form-urlencoded'],
-    ]);
-    $resp=curl_exec($ch);
-    $err=curl_error($ch);
-    $code=curl_getinfo($ch,CURLINFO_HTTP_CODE);
-    curl_close($ch);
+<form id="maishaForm" method="POST" action="<?= htmlspecialchars(MAISHA_CHECKOUT_URL) ?>">
+  <input type="hidden" name="gatewayMode" value="<?= (int)MAISHA_GATEWAY_MODE ?>">
+  <input type="hidden" name="publicApiKey" value="<?= htmlspecialchars(MAISHA_PUBLIC_KEY) ?>">
+  <input type="hidden" name="secretApiKey" value="<?= htmlspecialchars(MAISHA_SECRET_KEY) ?>">
+  <input type="hidden" name="montant" value="<?= htmlspecialchars($tx['montant_paye']) ?>">
+  <input type="hidden" name="devise" value="<?= htmlspecialchars($tx['devise'] ?? 'USD') ?>">
+  <input type="hidden" name="callbackUrl" value="<?= htmlspecialchars($callbackUrl) ?>">
+</form>
 
-    if($err || !$resp){
-        file_put_contents(__DIR__.'/maishapay.log', date('c').' CHECKOUT ERROR ref='.$ref.' err='.$err.' code='.$code.PHP_EOL, FILE_APPEND);
-        echo "<h2>Erreur connexion MaishaPay</h2><p>".htmlspecialchars($err)."</p><p><a href='vote1.php?candidat=".(int)$tx['participante_id']."'>Retour</a></p>";
-        exit;
-    }
-
-    // La réponse est HTML de MaishaPay Payment Panel, on l'affiche directement
-    // On ajoute un bandeau sécurité au dessus
-    // Si la réponse contient déjà <html>, on l'affiche telle quelle mais on injecte notre bandeau via str_replace
-    if(stripos($resp, '<html')!==false){
-        // Injecte bandeau après <body>
-        $banner = "<div style='background:#071A3D;color:#fff;padding:10px 16px;font-family:Inter,sans-serif;font-size:.82rem;text-align:center;border-bottom:2px solid #D4AF37'>🔒 Paiement sécurisé • Réf: ".htmlspecialchars($ref)." • ".(int)$tx['votes_accordes']." votes • ".htmlspecialchars($tx['montant_paye'])." ".htmlspecialchars($tx['devise'])." • Ne fermez pas cette page</div>";
-        $resp = preg_replace('/<body[^>]*>/i', '$0'.$banner, $resp, 1);
-        echo $resp;
-    } else {
-        // Si pas HTML complet, on affiche dans notre template
-        echo "<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Paiement sécurisé - LME GROUP</title></head><body style='margin:0;background:#050B16;color:#fff;font-family:Inter,sans-serif'>";
-        echo "<div style='background:#071A3D;padding:16px;text-align:center;border-bottom:1px solid rgba(212,175,55,.3)'>🔒 Paiement sécurisé • Réf: ".htmlspecialchars($ref)."</div>";
-        echo $resp;
-        echo "</body></html>";
-    }
+<script>
+let c=1;
+const el=document.getElementById('countdown');
+const it=setInterval(()=>{c--; if(c<=0){clearInterval(it); el.textContent='Redirection...'; document.getElementById('maishaForm').submit();} else {el.textContent='Redirection dans '+c+'s...';}}, 800);
+setTimeout(()=>{document.getElementById('maishaForm').submit();}, 1200);
+</script>
+</body>
+</html>
+<?php
     exit;
 
 }catch(Exception $e){
-    file_put_contents(__DIR__.'/maishapay.log', date('c').' CHECKOUT EXCEPTION ref='.$ref.' '.$e->getMessage().PHP_EOL, FILE_APPEND);
+    file_put_contents(__DIR__.'/maishapay.log', date('c').' CHECKOUT ERROR ref='.$ref.' '.$e->getMessage().PHP_EOL, FILE_APPEND);
     http_response_code(500);
-    echo "<h2>Erreur serveur</h2><p>".htmlspecialchars($e->getMessage())."</p>";
+    echo "<h2>Erreur serveur</h2><p>".htmlspecialchars($e->getMessage())."</p><p><a href='index.php'>Accueil</a></p>";
     exit;
 }
