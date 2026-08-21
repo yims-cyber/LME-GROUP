@@ -193,6 +193,15 @@ function ensureMaishapaySchema(PDO $pdo){
     } catch(Exception $e){
         file_put_contents(__DIR__.'/maishapay.log', date('c')." SCHEMA est_paiement_maishapay error: ".$e->getMessage().PHP_EOL, FILE_APPEND);
     }
+    try{
+        $stmt=$pdo->query("SHOW COLUMNS FROM transactions_votes LIKE 'payment_page_url'");
+        if($stmt->rowCount()==0){
+            $pdo->exec("ALTER TABLE transactions_votes ADD COLUMN payment_page_url VARCHAR(512) NULL DEFAULT NULL AFTER est_paiement_maishapay");
+            file_put_contents(__DIR__.'/maishapay.log', date('c')." SCHEMA ADD payment_page_url NULL DEFAULT NULL OK".PHP_EOL, FILE_APPEND);
+        }
+    } catch(Exception $e){
+        file_put_contents(__DIR__.'/maishapay.log', date('c')." SCHEMA payment_page_url error: ".$e->getMessage().PHP_EOL, FILE_APPEND);
+    }
 }
 
 function checkConcours(PDO $pdo, int $concours_id): array {
@@ -601,7 +610,6 @@ if($action==='initiate_card_payment'){
     ];
 
     $result=maishapayPost($payloadCard, 30);
-    // SECURITE: masque clés dans log
     $maskedPayload = $payloadCard;
     $maskedPayload['publicApiKey'] = substr($maskedPayload['publicApiKey'],0,10).'***MASKED***';
     $maskedPayload['secretApiKey'] = '***MASKED***';
@@ -610,27 +618,55 @@ if($action==='initiate_card_payment'){
     $data=json_decode($result['response'],true);
     $isAccepted = false;
     $paymentPage = null;
-    if(isset($data['status']) && $data['status']==200){
+    $maishaTxId = '';
+    if(isset($data['status']) && in_array((int)$data['status'], [200,202])){
         $sc = $data['data']['statusCode'] ?? 0;
-        if(in_array((int)$sc, [200,202,201])) $isAccepted = true;
+        if(in_array((int)$sc, [200,202,201]) || strtolower($data['data']['statusDescription'] ?? '')==='accepted' || strtolower($data['data']['statusDescription'] ?? '')==='accepte'){
+            $isAccepted = true;
+        }
         $paymentPage = $data['data']['paymentPage'] ?? null;
+        $maishaTxId = $data['data']['transactionId'] ?? '';
+        // Sauvegarde payment_page_url et transactionId pour analyse + pour vote1_checkout.php
+        try{
+            $pdo->prepare("UPDATE transactions_votes SET payment_page_url=:pp, id_transaction_unipesa=:tid, message_retour=CONCAT(message_retour, ' | Maishapay Tx:', :tid2, ' PP:', :pp2) WHERE numero_reference=:r")
+                ->execute([
+                    ':pp'=>$paymentPage,
+                    ':tid'=>$maishaTxId,
+                    ':tid2'=>$maishaTxId,
+                    ':pp2'=>substr($paymentPage ?? '',0,100),
+                    ':r'=>$reference,
+                ]);
+        } catch(PDOException $e){
+            // Si colonne payment_page_url n'existe pas encore, ignore (auto ALTER fera)
+            try{
+                $pdo->prepare("UPDATE transactions_votes SET id_transaction_unipesa=:tid WHERE numero_reference=:r")
+                    ->execute([':tid'=>$maishaTxId, ':r'=>$reference]);
+            } catch(Exception $e2){}
+        }
     }
-
-    // Si REST accepté, on prépare Checkout form (méthode recommandée par doc Checkout)
-    // Checkout endpoint: POST avec gatewayMode, publicApiKey, secretApiKey, montant, devise, callbackUrl
-    // Le front fera un POST vers MAISHA_CHECKOUT_URL pour afficher page carte
 
     if(!$isAccepted){
-        // Même si REST échoue, on tente quand même Checkout (parfois REST CARD nécessite Checkout)
-        // On ne marque pas echoue tout de suite, on laisse Checkout tenter
-        $isAccepted = true; // on force pour permettre redirection Checkout, car Checkout peut marcher même si REST dit autre chose
+        $msg = $data['data']['statusDescription'] ?? $data['description'] ?? $data['title'] ?? 'Erreur Maishapay';
+        if(isset($data['errors'])) $msg .= ' '.json_encode($data['errors']);
+        // Si c'est vraiment un refus (pas juste Accepted), on marque echoue pour ne pas bloquer en en_attente
+        if(stripos($msg,'declined')!==false || stripos($msg,'refused')!==false || stripos($msg,'error')!==false){
+            try{ $pdo->prepare("UPDATE transactions_votes SET etat_paiement='echoue', message_retour=:m WHERE numero_reference=:r")->execute([':m'=>'Maishapay Init declined: '.$msg,':r'=>$reference]); }catch(Exception $e){}
+            echo json_encode(['success'=>false,'message'=>$msg, 'reference'=>$reference]); exit;
+        }
+        // Sinon on force Accepted pour permettre Checkout (cas sandbox où paymentPage null)
+        $isAccepted = true;
     }
 
-    // SECURITE: on ne retourne plus secretApiKey au client JS
-    // On retourne uniquement reference + URL vers vote1_checkout.php qui fera le POST serveur sécurisé
+    // PRODUCTION: si paymentPage URL retournée (https://.../CyberSource), on redirige direct vers elle (pas vers vote1_checkout form)
+    // Sinon fallback vers vote1_checkout.php qui fait form POST
     $host = $_SERVER['HTTP_HOST'] ?? 'lme-group.zaloriatech.com';
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS']!=='off') ? 'https' : 'https';
-    $checkoutRedirectUrl = $scheme.'://'.$host.'/vote1_checkout.php?ref='.urlencode($reference);
+    if($paymentPage && filter_var($paymentPage, FILTER_VALIDATE_URL)){
+        $checkoutRedirectUrl = $paymentPage; // CyberSource direct
+        file_put_contents(__DIR__.'/maishapay.log', date('c')." CARD PROD paymentPage URL direct: $paymentPage ref=$reference".PHP_EOL, FILE_APPEND);
+    } else {
+        $checkoutRedirectUrl = $scheme.'://'.$host.'/vote1_checkout.php?ref='.urlencode($reference);
+    }
 
     echo json_encode([
         'success'=>true,
@@ -698,7 +734,26 @@ if($action==='check_payment'){
         }
 
         // Si carte (Maishapay), pas d'endpoint status public, on se base sur DB mise à jour par vote1_callback.php
+        // Mais si en_attente depuis >15min (ex: declined sur CyberSource sans callback), on débloque en echoue pour permettre retry
         if($row){
+            if($row['etat_paiement']==='en_attente'){
+                try{
+                    $initie = strtotime($row['initie_le'] ?? '');
+                    if($initie && (time() - $initie) > 900){ // 15 min
+                        // Vérifie si c'est une carte Maishapay
+                        $isCard = in_array(strtolower($row['moyen_paiement']), ['carte','visa','mastercard']) || ($row['est_paiement_maishapay']==1) || ($row['gateway_paiement']=='maishapay');
+                        if($isCard){
+                            // Marque echoue pour débloquer, l'user pourra réessayer
+                            $pdo->prepare("UPDATE transactions_votes SET etat_paiement='echoue', message_retour=CONCAT(COALESCE(message_retour,''), ' | Auto echoue timeout 15min - CyberSource declined sans callback') WHERE numero_reference=? AND etat_paiement='en_attente'")
+                                ->execute([$reference]);
+                            $row['etat_paiement']='echoue';
+                            $row['message_retour']=($row['message_retour']??'').' | Timeout 15min';
+                            echo json_encode(['statut'=>'echoue','message'=>'Paiement expiré / declined sur CyberSource sans retour. Vous pouvez réessayer.','details'=>$row]);
+                            exit;
+                        }
+                    }
+                } catch(Exception $e){}
+            }
             echo json_encode(['statut'=>$row['etat_paiement'],'message'=>$row['message_retour']??'En attente MaishaPay carte…','details'=>$row]);
             exit;
         }
@@ -708,6 +763,30 @@ if($action==='check_payment'){
 
     echo json_encode(['statut'=>PAIEMENT_ETAT_EN_ATTENTE,'message'=>'En attente…']);
     exit;
+}
+
+/* ===== cancel_payment - pour débloquer statut en_attente quand carte declined sur CyberSource ===== */
+if($action==='cancel_payment'){
+    $reference=trim($_POST['reference'] ?? $_GET['reference'] ?? '');
+    if(!$reference){ echo json_encode(['success'=>false,'message'=>'reference manquante']); exit; }
+    try{
+        $pdo=getDB();
+        ensureMaishapaySchema($pdo);
+        $stmt=$pdo->prepare("SELECT * FROM transactions_votes WHERE numero_reference=? LIMIT 1");
+        $stmt->execute([$reference]);
+        $row=$stmt->fetch();
+        if(!$row){ echo json_encode(['success'=>false,'message'=>'Transaction introuvable']); exit; }
+        if($row['etat_paiement']!=='en_attente'){
+            echo json_encode(['success'=>true,'statut'=>$row['etat_paiement'],'message'=>'Déjà '.$row['etat_paiement']]); exit;
+        }
+        $pdo->prepare("UPDATE transactions_votes SET etat_paiement='echoue', message_retour=CONCAT(COALESCE(message_retour,''), ' | Annulé par user / Declined CyberSource'), confirme_le=NOW() WHERE numero_reference=?")
+            ->execute([$reference]);
+        file_put_contents(__DIR__.'/maishapay.log', date('c')." CANCEL ref=$reference marqué echoue".PHP_EOL, FILE_APPEND);
+        echo json_encode(['success'=>true,'statut'=>'echoue','message'=>'Paiement annulé, vous pouvez réessayer']);
+        exit;
+    } catch(Exception $e){
+        echo json_encode(['success'=>false,'message'=>$e->getMessage()]); exit;
+    }
 }
 
 /* ===== get_realtime_votes ===== */

@@ -132,6 +132,23 @@ try{
         header('Location: '.$url);
         exit;
     }
+    if($tx['etat_paiement']==='echoue'){
+        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS']!=='off') ? 'https' : 'https';
+        $host = $_SERVER['HTTP_HOST'] ?? 'lme-group.zaloriatech.com';
+        $url = $scheme.'://'.$host.'/vote1.php?candidat='.(int)$tx['participante_id'].'&concours_id='.(int)$tx['concours_id'].'&etape_id='.($tx['etape_id']? (int)$tx['etape_id']:'').'&receipt='.urlencode($ref).'&status=echoue';
+        echo "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Paiement échoué</title><style>body{font-family:Inter,sans-serif;background:#050B16;color:#fff;padding:20px;text-align:center}.card{max-width:480px;margin:40px auto;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:16px;padding:24px}a{color:#D4AF37}</style></head><body><div class='card'><h2>Paiement échoué</h2><p>Réf: ".htmlspecialchars($ref)."</p><p>".htmlspecialchars($tx['message_retour']??'')."</p><p><a href='$url'>Retour et réessayer</a></p></div></body></html>";
+        exit;
+    }
+
+    // PRODUCTION: si payment_page_url existe (URL CyberSource retournée par Maishapay PROD), on redirige direct vers elle
+    // Ex: https://pcesarakapayprodapi01.eastus.cloudapp.azure.com/api/Payments/postpaymentrequest/2032366/CyberSource
+    $paymentPageUrl = $tx['payment_page_url'] ?? null;
+    if($paymentPageUrl && filter_var($paymentPageUrl, FILTER_VALIDATE_URL)){
+        file_put_contents(__DIR__.'/maishapay.log', date('c')." CHECKOUT redirect direct to paymentPageUrl $paymentPageUrl ref=$ref".PHP_EOL, FILE_APPEND);
+        header('Location: '.$paymentPageUrl);
+        echo "<html><body>Redirection vers <a href='".htmlspecialchars($paymentPageUrl)."'>CyberSource</a><script>window.location='".htmlspecialchars($paymentPageUrl)."'</script></body></html>";
+        exit;
+    }
 
     $host = $_SERVER['HTTP_HOST'] ?? 'lme-group.zaloriatech.com';
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS']!=='off') ? 'https' : 'https';

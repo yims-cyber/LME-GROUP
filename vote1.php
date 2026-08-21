@@ -598,9 +598,13 @@ h1 em{font-style:italic;font-weight:700;color:var(--gold-lt)}
 
   <div id="loadingBlock" class="loading-state">
     <div class="spinner"></div>
-    <div class="loading-msg" id="loadingMsg">Connexion à MaishaPay…</div>
+    <div class="loading-msg" id="loadingMsg">Connexion…</div>
     <div class="loading-sub" id="loadingSub"></div>
     <p style="margin-top:16px;font-family:var(--font-ui);font-size:.72rem;color:var(--muted2)">Ne fermez pas cette page — traitement en cours…</p>
+    <div style="margin-top:20px;display:flex;flex-direction:column;gap:10px;max-width:320px;margin-left:auto;margin-right:auto">
+      <button class="btn btn-outline" id="cancelBtn" style="display:none">❌ Annuler / Marquer comme échoué pour réessayer</button>
+      <p style="font-size:.68rem;color:var(--muted2);text-align:center">Si vous êtes bloqué sur CyberSource avec <b>Your order was declined</b>, cliquez Annuler puis réessayez avec une autre carte. Le système débloquera automatiquement après 15min.</p>
+    </div>
   </div>
 
   <div id="receiptBlock" class="receipt-container">
@@ -852,7 +856,25 @@ function showError(id,msg){ const el=document.getElementById(id); if(msg) el.tex
 function hideError(id){ const el=document.getElementById(id); if(el) el.classList.remove('show'); }
 function hideAllBlocks(){ formCard.style.display='none'; loadingBlock.classList.remove('show'); receiptBlock.classList.remove('show'); }
 function showFormBlock(){ hideAllBlocks(); formCard.style.display='block'; payBtn.disabled=false; }
-function showLoading(msg,sub){ hideAllBlocks(); loadingBlock.classList.add('show'); loadingMsg.textContent=msg||''; loadingSub.textContent=sub||''; }
+function showLoading(msg,sub){ hideAllBlocks(); loadingBlock.classList.add('show'); loadingMsg.textContent=msg||''; loadingSub.textContent=sub||''; const cb=document.getElementById('cancelBtn'); if(cb) cb.style.display='inline-flex'; }
+
+document.getElementById('cancelBtn')?.addEventListener('click', async()=>{
+  const ref = lastReference || RECEIPT_REF_FROM_URL;
+  if(!ref){ showFormBlock(); return; }
+  if(!confirm('Annuler ce paiement et marquer comme échoué pour pouvoir réessayer ?')) return;
+  try{
+    const fd=new FormData(); fd.append('action','cancel_payment'); fd.append('reference',ref);
+    const res=await fetch('vote1_api.php',{method:'POST',body:fd});
+    const data=await res.json();
+    if(data.success){
+      if(pollInterval) clearInterval(pollInterval);
+      showFormBlock(); showError('err-global','Paiement annulé: '+ (data.message||'') + ' Vous pouvez réessayer.');
+      updateStepper(2);
+    } else {
+      showError('err-global', data.message||'Erreur annulation');
+    }
+  }catch(e){ showError('err-global','Erreur réseau annulation'); }
+});
 
 payBtn.addEventListener('click', async()=>{
   document.querySelectorAll('.error-msg').forEach(el=>el.classList.remove('show'));
@@ -919,6 +941,7 @@ payBtn.addEventListener('click', async()=>{
         showFormBlock(); showError('err-global',data.message||'Erreur carte.'); payBtn.disabled=false; return;
       }
       showLoading('Redirection sécurisée vers paiement carte…','Référence: '+data.reference+' • Vous allez saisir votre carte Visa/Mastercard sur page sécurisée 3D Secure (sans exposer clés marchand).');
+      lastReference = data.reference;
       // SECURITE: redirection vers vote1_checkout.php qui fait POST serveur avec secret masqué
       const redirectUrl = data.checkout_redirect_url || ('vote1_checkout.php?ref='+encodeURIComponent(data.reference));
       setTimeout(()=>{ window.location.href = redirectUrl; }, 1200);
