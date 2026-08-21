@@ -893,10 +893,17 @@ document.getElementById('email_card')?.addEventListener('input', ()=>{
 document.getElementById('customer_name')?.addEventListener('input', updateSummary);
 document.getElementById('phone_card')?.addEventListener('input', updateSummary);
 
-function showError(id,msg){ const el=document.getElementById(id); if(!el) return; if(msg) el.textContent=msg; el.classList.add('show'); 
-  // aussi affiche globalAlert stylé visible mobile
+function showError(id,msg){ 
+  const el=document.getElementById(id); 
+  const text = msg || (el ? el.textContent : '');
+  if(el){
+    if(msg) el.textContent=msg;
+    // Pour err-global on n'affiche QUE globalAlert pour éviter doublon (ton screenshot MP260822.0042.D01381)
+    if(id!=='err-global') el.classList.add('show');
+  }
+  // Affiche globalAlert stylé visible mobile pour toutes les erreurs importantes
   if(id==='err-global' || id==='err-offre' || id==='err-telephone' || id==='err-email-card'){
-    showGlobalAlert(msg || el.textContent, 'error');
+    showGlobalAlert(text, 'error');
   }
 }
 function hideError(id){
