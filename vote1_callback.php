@@ -114,17 +114,30 @@ if(!$reference && $rawInput){
     }
 }
 
-// Si ref contient encore "?status=" collé (bug VISA/?status=200), on extrait avant ?
-if($reference && strpos($reference, '?')!==false){
-    $reference = explode('?', $reference)[0];
-}
-if($reference && strpos($reference, '/')!==false && strpos($reference, 'LME')!==false){
-    // cas "VISA/?status=200" où ref est polluée, on cherche vrai ref LME dans URI
-    if(preg_match('/(lme-group-CARD-[A-Z0-9\-]+)/i', $requestUri, $m)){
-        $reference = $m[1];
-    } elseif(preg_match('/(LME-[A-Z0-9\-]+)/i', $requestUri, $m)){
-        $reference = $m[1];
+// Si ref contient encore "?status=" collé (bug VISA/?status=200) ou "/" final, on nettoie
+if($reference){
+    // Enlève ?status=... collé
+    if(strpos($reference, '?')!==false){
+        $reference = explode('?', $reference)[0];
     }
+    // Enlève trailing slash / qui vient de ...REF/?status=200
+    $reference = rtrim($reference, "/ \t\n\r\0\x0B");
+    // Si contient encore / (ex VISA/REF), extrait vrai ref LME
+    if(strpos($reference, '/')!==false){
+        // cherche vrai ref LME dans URI (case-insensitive)
+        if(preg_match('/(lme-group-CARD-[A-Z0-9\-]+)/i', $requestUri, $m)){
+            $reference = $m[1];
+        } elseif(preg_match('/(LME-[A-Z0-9\-]+)/i', $requestUri, $m)){
+            $reference = $m[1];
+        } else {
+            // fallback: prend dernier segment après /
+            $parts = explode('/', $reference);
+            $reference = end($parts);
+            $reference = rtrim($reference, "/");
+        }
+    }
+    // Nettoie encore
+    $reference = rtrim($reference, "/");
 }
 
 // Statut - extraction robuste

@@ -34,6 +34,19 @@ function getDB(): PDO {
 $ref = trim($_GET['ref'] ?? $_GET['reference'] ?? '');
 $token = trim($_GET['_token'] ?? $_GET['token'] ?? '');
 
+// Nettoie ref si contient /?status= ou ?status= ou trailing slash (bug Maishapay)
+if($ref){
+    if(strpos($ref, '?')!==false) $ref = explode('?', $ref)[0];
+    $ref = rtrim($ref, "/ \t\n\r\0\x0B");
+    if(strpos($ref, '/')!==false && preg_match('/(lme-group-CARD-[A-Z0-9\-]+)/i', $ref, $m)){
+        $ref = $m[1];
+    } elseif(strpos($ref, '/')!==false){
+        $parts = explode('/', $ref);
+        $ref = end($parts);
+        $ref = rtrim($ref, "/");
+    }
+}
+
 // Si _token sans ref, tente session ou dernière transaction
 if(!$ref && $token){
     if(!empty($_SESSION['maishapay_ref'])){
