@@ -453,9 +453,11 @@ if($action==='initiate_card_payment'){
 
     $host = $_SERVER['HTTP_HOST'] ?? 'lme-group.zaloriatech.com';
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS']!=='off') ? 'https' : 'https';
-    // callbackUrl doit contenir ref pour que vote1_callback puisse identifier la transaction
-    // On ajoute candidate_id pour pouvoir rediriger vers reçu
-    $callbackUrl = $scheme.'://'.$host.'/vote1_callback.php?ref='.$reference.'&method=card&candidate_id='.$participanteId.'&concours_id='.$concoursId.'&etape_id='.($etapeId??'').'&card_type='.$cardType;
+    // FIX BUG 2026-08-21: callbackUrl simplifié à ?ref=REF seulement
+    // Ancien avec &method=card&candidate_id=... causait double ? -> card_type=VISA/?status=200 => status vide => restait en_attente
+    // Maintenant Maishapay fera /vote1_callback.php?ref=REF?status=200... et notre parser robuste gère double ? et APPROVED=>confirme
+    // On récupère candidate_id etc depuis DB via reference, pas besoin de les mettre dans URL
+    $callbackUrl = $scheme.'://'.$host.'/vote1_callback.php?ref='.$reference;
 
     // 1) On tente d'abord via REST API chanel CARD (testé OK avec callbackUrl)
     $payloadCard=[
