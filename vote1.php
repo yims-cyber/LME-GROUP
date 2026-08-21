@@ -789,6 +789,7 @@ packOptions.forEach(opt=>{
     selectedOffre=OFFRES.find(o=>o.id===selectedOffreId);
     updateSummary();
     hideError('err-offre');
+    hideGlobalAlert();
     updateStepper(2);
   });
 });
@@ -850,7 +851,6 @@ document.querySelectorAll('.card-type-option').forEach(opt=>{
 });
 
 phoneInput?.addEventListener('input',()=>{
-  hideError('err-telephone');
   const raw=phoneInput.value;
   const digits=raw.replace(/\D/g,'');
   currentOp=detectOperator(raw);
@@ -860,19 +860,36 @@ phoneInput?.addEventListener('input',()=>{
     opDot.textContent=currentOp.short;
     opName.textContent=currentOp.label+' détecté ('+currentOp.provider+')';
     opNumber.textContent=prettyPhone(currentOp.national)+' (+'+currentOp.e164+')';
+    hideError('err-telephone');
+    hideGlobalAlert();
     updateStepper(3);
   } else {
     operatorBadge.className='operator-badge';
     phoneInput.classList.remove('valid');
-    phoneInput.classList.toggle('invalid', digits.length>=9);
-    if(digits.length>=9) showError('err-telephone');
+    const longEnough = digits.length>=9;
+    phoneInput.classList.toggle('invalid', longEnough);
+    if(longEnough){
+      showError('err-telephone');
+    } else {
+      hideError('err-telephone');
+      // si globalAlert affichait l'erreur tel, on l'enlève dès que corrigé / effacé
+      const ga=document.getElementById('globalAlert');
+      if(ga && ga.textContent.includes('Numéro invalide')) hideGlobalAlert();
+    }
     if(selectedOffre) updateStepper(2);
   }
   updateSummary();
 });
 
 document.getElementById('email_mobile')?.addEventListener('input', updateSummary);
-document.getElementById('email_card')?.addEventListener('input', ()=>{ hideError('err-email-card'); updateSummary(); });
+document.getElementById('email_card')?.addEventListener('input', ()=>{
+  const v=document.getElementById('email_card').value.trim();
+  if(v.includes('@') && v.length>5){
+    hideError('err-email-card');
+    hideGlobalAlert();
+  }
+  updateSummary();
+});
 document.getElementById('customer_name')?.addEventListener('input', updateSummary);
 document.getElementById('phone_card')?.addEventListener('input', updateSummary);
 
@@ -882,7 +899,14 @@ function showError(id,msg){ const el=document.getElementById(id); if(!el) return
     showGlobalAlert(msg || el.textContent, 'error');
   }
 }
-function hideError(id){ const el=document.getElementById(id); if(el) el.classList.remove('show'); }
+function hideError(id){
+  const el=document.getElementById(id);
+  if(el) el.classList.remove('show');
+  // si c'était une erreur qui affichait globalAlert, on l'enlève aussi directement quand corrigé
+  if(id==='err-offre' || id==='err-telephone' || id==='err-email-card' || id==='err-global'){
+    hideGlobalAlert();
+  }
+}
 function showGlobalAlert(message, type='error'){
   const ga=document.getElementById('globalAlert');
   if(!ga) return;
