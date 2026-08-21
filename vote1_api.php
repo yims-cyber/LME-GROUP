@@ -320,26 +320,54 @@ if($action==='initiate_payment'){
 
     $reference=$lienUnique.'-'.date('YmdHis').'-'.strtoupper(substr(bin2hex(random_bytes(3)),0,6));
 
-    // Mobile Money = Unipesa/Avadapay (comme voter.php)
-    $pdo->prepare("INSERT INTO transactions_votes (site_id, numero_reference, concours_id, participante_id, etape_id, moyen_paiement, numero_telephone, email_votant, montant_paye, devise, votes_accordes, etat_paiement, initie_le, message_retour) VALUES (:sid,:ref,:cid,:pid,:eid,:meth,:tel,:email,:montant,:devise,:votes,:etat,NOW(),'')")
-        ->execute([
-            ':sid'=>$siteId,
-            ':ref'=>$reference,
-            ':cid'=>$concoursId,
-            ':pid'=>$participanteId,
-            ':eid'=>$etapeId,
-            ':meth'=>$opInfo['operator'], // mpesa/airtel/orange/africell
-            ':tel'=>$opInfo['e164'],
-            ':email'=>$email,
-            ':montant'=>$montant,
-            ':devise'=>$devise,
-            ':votes'=>$nombreVotes,
-            ':etat'=>PAIEMENT_ETAT_EN_ATTENTE,
-        ]);
+    // Mobile Money = Unipesa/Avadapay (comme voter.php) + nouveaux champs pour analyse
+    // moyen_paiement = mpesa/airtel/orange/africell (enum d'origine)
+    // gateway_paiement = unipesa, est_paiement_maishapay=0
+    try{
+        $pdo->prepare("INSERT INTO transactions_votes (site_id, numero_reference, concours_id, participante_id, etape_id, moyen_paiement, gateway_paiement, provider_maishapay, est_paiement_maishapay, numero_telephone, email_votant, montant_paye, devise, votes_accordes, etat_paiement, initie_le, message_retour) VALUES (:sid,:ref,:cid,:pid,:eid,:meth,:gateway,:provider,:est_maishapay,:tel,:email,:montant,:devise,:votes,:etat,NOW(),'')")
+            ->execute([
+                ':sid'=>$siteId,
+                ':ref'=>$reference,
+                ':cid'=>$concoursId,
+                ':pid'=>$participanteId,
+                ':eid'=>$etapeId,
+                ':meth'=>$opInfo['operator'],
+                ':gateway'=>'unipesa',
+                ':provider'=>null,
+                ':est_maishapay'=>0,
+                ':tel'=>$opInfo['e164'],
+                ':email'=>$email,
+                ':montant'=>$montant,
+                ':devise'=>$devise,
+                ':votes'=>$nombreVotes,
+                ':etat'=>PAIEMENT_ETAT_EN_ATTENTE,
+            ]);
+    } catch(PDOException $e){
+        // Fallback si colonnes gateway n'existent pas encore (avant migration)
+        if(strpos($e->getMessage(),'Unknown column')!==false){
+            $pdo->prepare("INSERT INTO transactions_votes (site_id, numero_reference, concours_id, participante_id, etape_id, moyen_paiement, numero_telephone, email_votant, montant_paye, devise, votes_accordes, etat_paiement, initie_le, message_retour) VALUES (:sid,:ref,:cid,:pid,:eid,:meth,:tel,:email,:montant,:devise,:votes,:etat,NOW(),'')")
+                ->execute([
+                    ':sid'=>$siteId,
+                    ':ref'=>$reference,
+                    ':cid'=>$concoursId,
+                    ':pid'=>$participanteId,
+                    ':eid'=>$etapeId,
+                    ':meth'=>$opInfo['operator'],
+                    ':tel'=>$opInfo['e164'],
+                    ':email'=>$email,
+                    ':montant'=>$montant,
+                    ':devise'=>$devise,
+                    ':votes'=>$nombreVotes,
+                    ':etat'=>PAIEMENT_ETAT_EN_ATTENTE,
+                ]);
+        } else {
+            throw $e;
+        }
+    }
 
     $host = $_SERVER['HTTP_HOST'] ?? 'lme-group.zaloriatech.com';
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS']!=='off') ? 'https' : 'https';
-    $callbackUrl = $scheme.'://'.$host.'/vote1_api.php'; // Unipesa callback vers vote1_api.php lui-même (comme voter_api.php)
+    $callbackUrl = $scheme.'://'.$host.'/vote1_api.php';
 
     $payload=[
         'merchant_id'=>UNIPESA_MERCHANT_ID,
@@ -356,7 +384,6 @@ if($action==='initiate_payment'){
 
     $result=unipesaPost('payment_c2b',$payload,20);
     file_put_contents(__DIR__.'/unipesa.log',date('c').' VOTE1 MOBILE REQ:'.json_encode($payload).' RESP:'.$result['response'].' ERR:'.$result['error'].' HTTP:'.$result['http_code'].PHP_EOL,FILE_APPEND);
-    file_put_contents(__DIR__.'/maishapay.log',date('c').' VOTE1 MOBILE via Unipesa (pas Maishapay) ref='.$reference.' operator='.$opInfo['operator'].PHP_EOL,FILE_APPEND);
 
     if($result['error'] || !$result['response']){
         echo json_encode(['success'=>false,'message'=>'Erreur réseau vers opérateur Unipesa.']); exit;
@@ -433,26 +460,73 @@ if($action==='initiate_card_payment'){
 
     $reference=$lienUnique.'-CARD-'.date('YmdHis').'-'.strtoupper(substr(bin2hex(random_bytes(3)),0,6));
 
-    // FIX SECURITE + ENUM: moyen_paiement doit être dans enum('mpesa','airtel','orange','africell','carte','especes','manuel')
-    // Donc pour carte on met 'carte' et on stocke VISA/MASTERCARD dans message_retour pour traçabilité (pas dans moyen_paiement)
-    $moyen = 'carte';
-    $msgInit = $cardType.' - Maishapay Checkout - Merchant sandbox - Initié';
-    $pdo->prepare("INSERT INTO transactions_votes (site_id, numero_reference, concours_id, participante_id, etape_id, moyen_paiement, numero_telephone, email_votant, montant_paye, devise, votes_accordes, etat_paiement, initie_le, message_retour) VALUES (:sid,:ref,:cid,:pid,:eid,:meth,:tel,:email,:montant,:devise,:votes,:etat,NOW(),:msg)")
-        ->execute([
-            ':sid'=>$siteId,
-            ':ref'=>$reference,
-            ':cid'=>$concoursId,
-            ':pid'=>$participanteId,
-            ':eid'=>$etapeId,
-            ':meth'=>$moyen,
-            ':tel'=>preg_replace('/\D/','',$phone) ?: '000000000',
-            ':email'=>$email,
-            ':montant'=>$montant,
-            ':devise'=>$devise,
-            ':votes'=>$nombreVotes,
-            ':etat'=>PAIEMENT_ETAT_EN_ATTENTE,
-            ':msg'=>$msgInit,
-        ]);
+    // FIX ENUM + ANALYSE: moyen_paiement doit être dans enum élargi avec visa, mastercard
+    // On met visa/mastercard direct pour analyse, plus gateway_paiement=maishapay, provider_maishapay=VISA/MASTERCARD, est_paiement_maishapay=1
+    $moyenEnum = ($cardType==='MASTERCARD') ? 'mastercard' : 'visa'; // respecte nouveau enum
+    $msgInit = $cardType.' - Maishapay Checkout - Initié';
+    try{
+        $pdo->prepare("INSERT INTO transactions_votes (site_id, numero_reference, concours_id, participante_id, etape_id, moyen_paiement, gateway_paiement, provider_maishapay, est_paiement_maishapay, numero_telephone, email_votant, montant_paye, devise, votes_accordes, etat_paiement, initie_le, message_retour) VALUES (:sid,:ref,:cid,:pid,:eid,:meth,:gateway,:provider,:est_maishapay,:tel,:email,:montant,:devise,:votes,:etat,NOW(),:msg)")
+            ->execute([
+                ':sid'=>$siteId,
+                ':ref'=>$reference,
+                ':cid'=>$concoursId,
+                ':pid'=>$participanteId,
+                ':eid'=>$etapeId,
+                ':meth'=>$moyenEnum,
+                ':gateway'=>'maishapay',
+                ':provider'=>$cardType,
+                ':est_maishapay'=>1,
+                ':tel'=>preg_replace('/\D/','',$phone) ?: '000000000',
+                ':email'=>$email,
+                ':montant'=>$montant,
+                ':devise'=>$devise,
+                ':votes'=>$nombreVotes,
+                ':etat'=>PAIEMENT_ETAT_EN_ATTENTE,
+                ':msg'=>$msgInit,
+            ]);
+    } catch(PDOException $e){
+        // Fallback si colonnes n'existent pas ou enum pas encore étendu
+        if(strpos($e->getMessage(),'Unknown column')!==false || strpos($e->getMessage(),'Data truncated')!==false || strpos($e->getMessage(),'Incorrect')!==false){
+            try{
+                // Essaie avec carte générique (ancien enum)
+                $pdo->prepare("INSERT INTO transactions_votes (site_id, numero_reference, concours_id, participante_id, etape_id, moyen_paiement, numero_telephone, email_votant, montant_paye, devise, votes_accordes, etat_paiement, initie_le, message_retour) VALUES (:sid,:ref,:cid,:pid,:eid,:meth,:tel,:email,:montant,:devise,:votes,:etat,NOW(),:msg)")
+                    ->execute([
+                        ':sid'=>$siteId,
+                        ':ref'=>$reference,
+                        ':cid'=>$concoursId,
+                        ':pid'=>$participanteId,
+                        ':eid'=>$etapeId,
+                        ':meth'=>'carte',
+                        ':tel'=>preg_replace('/\D/','',$phone) ?: '000000000',
+                        ':email'=>$email,
+                        ':montant'=>$montant,
+                        ':devise'=>$devise,
+                        ':votes'=>$nombreVotes,
+                        ':etat'=>PAIEMENT_ETAT_EN_ATTENTE,
+                        ':msg'=>$msgInit,
+                    ]);
+            } catch(PDOException $e2){
+                // Dernier fallback
+                $pdo->prepare("INSERT INTO transactions_votes (site_id, numero_reference, concours_id, participante_id, etape_id, moyen_paiement, numero_telephone, email_votant, montant_paye, devise, votes_accordes, etat_paiement, initie_le, message_retour) VALUES (:sid,:ref,:cid,:pid,:eid,:meth,:tel,:email,:montant,:devise,:votes,:etat,NOW(),'')")
+                    ->execute([
+                        ':sid'=>$siteId,
+                        ':ref'=>$reference,
+                        ':cid'=>$concoursId,
+                        ':pid'=>$participanteId,
+                        ':eid'=>$etapeId,
+                        ':meth'=>'carte',
+                        ':tel'=>preg_replace('/\D/','',$phone) ?: '000000000',
+                        ':email'=>$email,
+                        ':montant'=>$montant,
+                        ':devise'=>$devise,
+                        ':votes'=>$nombreVotes,
+                        ':etat'=>PAIEMENT_ETAT_EN_ATTENTE,
+                    ]);
+            }
+        } else {
+            throw $e;
+        }
+    }
 
     $host = $_SERVER['HTTP_HOST'] ?? 'lme-group.zaloriatech.com';
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS']!=='off') ? 'https' : 'https';

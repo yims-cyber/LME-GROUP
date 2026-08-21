@@ -225,24 +225,76 @@ try{
     }
 
     if($existing){
-        // Toujours mettre à jour si on passe à confirme, ou si en_attente
         if($existing['etat_paiement']===PAIEMENT_ETAT_EN_ATTENTE || $internalStatus===PAIEMENT_ETAT_CONFIRME){
             $tid = $operatorRefId ?: $transactionRefId ?: $existing['id_transaction_unipesa'];
             $tref = $transactionRefId ?: $operatorRefId ?: $existing['ref_transaction_unipesa'];
             $msg = $description ?: 'Callback MaishaPay '.$status.' - Card '.($existing['moyen_paiement']??'');
-            // Si APPROVED sans status, on force confirme
             if($internalStatus===PAIEMENT_ETAT_EN_ATTENTE && stripos($description,'approved')!==false){
                 $internalStatus = PAIEMENT_ETAT_CONFIRME;
             }
-            $pdo->prepare("UPDATE transactions_votes SET etat_paiement=:s, confirme_le=NOW(), id_transaction_unipesa=:tid, ref_transaction_unipesa=:tref, message_retour=:msg WHERE numero_reference=:r")
-                ->execute([
-                    ':s'=>$internalStatus,
-                    ':tid'=>$tid,
-                    ':tref'=>$tref,
-                    ':msg'=>$msg,
-                    ':r'=>$reference,
-                ]);
-            logCallback("DB UPDATED ref=$reference to $internalStatus tid=$tid tref=$tref msg=$msg");
+            // Détecte type carte pour enum visa/mastercard + provider
+            $cardTypeDetected = 'VISA';
+            if(preg_match('/MASTERCARD/i', $requestUri.$description.($existing['message_retour']??''))){
+                $cardTypeDetected = 'MASTERCARD';
+            } elseif(preg_match('/VISA/i', $requestUri.$description.($existing['message_retour']??''))){
+                $cardTypeDetected = 'VISA';
+            }
+            $moyenEnum = ($cardTypeDetected==='MASTERCARD') ? 'mastercard' : 'visa';
+
+            // UPDATE avec nouveaux champs NULL-safe pour autres structures
+            try{
+                $pdo->prepare("UPDATE transactions_votes SET etat_paiement=:s, confirme_le=NOW(), id_transaction_unipesa=:tid, ref_transaction_unipesa=:tref, message_retour=:msg, moyen_paiement=:moyen, gateway_paiement='maishapay', provider_maishapay=:provider, est_paiement_maishapay=1 WHERE numero_reference=:r")
+                    ->execute([
+                        ':s'=>$internalStatus,
+                        ':tid'=>$tid,
+                        ':tref'=>$tref,
+                        ':msg'=>$msg.' - '.$cardTypeDetected.' Maishapay',
+                        ':moyen'=>$moyenEnum,
+                        ':provider'=>$cardTypeDetected,
+                        ':r'=>$reference,
+                    ]);
+                logCallback("DB UPDATED (new cols NULL-safe) ref=$reference to $internalStatus moyen=$moyenEnum provider=$cardTypeDetected tid=$tid");
+            } catch(PDOException $e){
+                // Fallback si colonnes gateway/provider/est n'existent pas encore (structure sans carte) ou enum pas étendu
+                $errMsg = $e->getMessage();
+                if(strpos($errMsg,'Unknown column')!==false || strpos($errMsg,'Data truncated')!==false || strpos($errMsg,'Incorrect')!==false){
+                    try{
+                        // Essaie avec enum visa/mastercard seulement
+                        $pdo->prepare("UPDATE transactions_votes SET etat_paiement=:s, confirme_le=NOW(), id_transaction_unipesa=:tid, ref_transaction_unipesa=:tref, message_retour=:msg, moyen_paiement=:moyen WHERE numero_reference=:r")
+                            ->execute([
+                                ':s'=>$internalStatus,
+                                ':tid'=>$tid,
+                                ':tref'=>$tref,
+                                ':msg'=>$msg.' - '.$cardTypeDetected,
+                                ':moyen'=>$moyenEnum,
+                                ':r'=>$reference,
+                            ]);
+                        logCallback("DB UPDATED (enum visa/mastercard) ref=$reference to $internalStatus moyen=$moyenEnum");
+                    } catch(PDOException $e2){
+                        // Dernier fallback: carte générique (ancien enum)
+                        $pdo->prepare("UPDATE transactions_votes SET etat_paiement=:s, confirme_le=NOW(), id_transaction_unipesa=:tid, ref_transaction_unipesa=:tref, message_retour=:msg WHERE numero_reference=:r")
+                            ->execute([
+                                ':s'=>$internalStatus,
+                                ':tid'=>$tid,
+                                ':tref'=>$tref,
+                                ':msg'=>$msg,
+                                ':r'=>$reference,
+                            ]);
+                        logCallback("DB UPDATED (fallback carte) ref=$reference to $internalStatus");
+                    }
+                } else {
+                    // Autre erreur, fallback simple
+                    $pdo->prepare("UPDATE transactions_votes SET etat_paiement=:s, confirme_le=NOW(), id_transaction_unipesa=:tid, ref_transaction_unipesa=:tref, message_retour=:msg WHERE numero_reference=:r")
+                        ->execute([
+                            ':s'=>$internalStatus,
+                            ':tid'=>$tid,
+                            ':tref'=>$tref,
+                            ':msg'=>$msg,
+                            ':r'=>$reference,
+                        ]);
+                    logCallback("DB UPDATED (fallback simple) ref=$reference to $internalStatus");
+                }
+            }
         } else {
             logCallback("DB SKIP already ".$existing['etat_paiement']." ref=$reference, keeping");
         }
