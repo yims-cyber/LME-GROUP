@@ -44,6 +44,7 @@ function logCallback($msg){
     file_put_contents(__DIR__.'/maishapay_callback.log', date('c').' '.$msg.PHP_EOL, FILE_APPEND);
 }
 
+session_start();
 $rawInput = file_get_contents('php://input');
 $getParams = $_GET;
 $postParams = $_POST;
@@ -73,14 +74,26 @@ function extractFromUri($uri, $key){
     return null;
 }
 
-// Détection référence - priorité ?ref= dans callbackUrl simplifié
+// Détection référence - priorité ?ref= dans callbackUrl simplifié + gestion _token (bug vu sur vote1_checkout.php?_token=...)
 $reference = null;
+$token = $getParams['_token'] ?? $getParams['token'] ?? null;
+if(!$token){
+    $token = extractFromUri($requestUri, '_token') ?? extractFromUri($requestUri, 'token');
+}
+
 $reference = $getParams['ref'] ?? $getParams['reference'] ?? null;
 if(!$reference){
     $reference = extractFromUri($requestUri, 'ref');
 }
 if(!$reference){
     $reference = extractFromUri($requestUri, 'reference');
+}
+// Si _token présent sans ref, tente session
+if(!$reference && $token){
+    if(!empty($_SESSION['maishapay_ref'])){
+        $reference = $_SESSION['maishapay_ref'];
+        logCallback("FOUND ref via session for token $token => $reference");
+    }
 }
 // Si toujours pas, cherche transactionReference dans URI ou POST
 if(!$reference){
