@@ -1,9 +1,10 @@
 <?php
 // vote1_checkout.php — Redirection sécurisée vers MaishaPay Checkout pour carte
-// Fix CORS + Livewire: on ne fait plus curl serveur qui affiche HTML depuis notre domaine (causait 404 /livewire/ + CORS)
-// Maintenant on affiche un form auto-submit côté client qui POST vers https://marchand.maishapay.online/payment/vers1.0/merchant/checkout
-// Le navigateur va sur le domaine Maishapay, assets chargés depuis Maishapay (même origine) => plus de CORS / Livewire not defined
-// Secret exposé dans form (exigence Maishapay Checkout), mais masqué dans logs + .htaccess deny logs
+// FIX 2026-08-21: gestion retour après annulation CyberSource / Cancel Order
+// - si action=cancel ou status=cancel -> marque echoue + redirect vote1
+// - si echoue -> auto redirect vers vote1 (pas page statique)
+// - si en_attente avec paymentPageUrl -> page intermédiaire avec bouton Continuer + Annuler/Retour vote1 pour éviter boucle back button
+// - sinon form auto-submit vers Maishapay Checkout
 
 session_start();
 ini_set('display_errors', 0);
@@ -64,8 +65,10 @@ function ensureMaishapaySchema(PDO $pdo){
 
 $ref = trim($_GET['ref'] ?? $_GET['reference'] ?? '');
 $token = trim($_GET['_token'] ?? $_GET['token'] ?? '');
+$actionParam = strtolower(trim($_GET['action'] ?? $_GET['status'] ?? ''));
+$isCancelAction = in_array($actionParam, ['cancel','canceled','cancelled','annuler','abort','declined','failed','cancelorder']);
 
-// Nettoie ref si contient /?status= ou ?status= ou trailing slash (bug Maishapay)
+// Nettoie ref
 if($ref){
     if(strpos($ref, '?')!==false) $ref = explode('?', $ref)[0];
     $ref = rtrim($ref, "/ \t\n\r\0\x0B");
@@ -78,7 +81,6 @@ if($ref){
     }
 }
 
-// Si _token sans ref, tente session ou recherche par token ou dernière transaction
 if(!$ref && $token){
     if(!empty($_SESSION['maishapay_ref'])){
         $ref = $_SESSION['maishapay_ref'];
@@ -88,7 +90,6 @@ if(!$ref && $token){
         try{
             $pdoTmp = getDB();
             ensureMaishapaySchema($pdoTmp);
-            // Cherche par token dans id/ref/message
             $stmtT = $pdoTmp->prepare("SELECT * FROM transactions_votes WHERE ref_transaction_unipesa LIKE ? OR id_transaction_unipesa LIKE ? OR message_retour LIKE ? ORDER BY transaction_id DESC LIMIT 1");
             $like = '%'.$token.'%';
             $stmtT->execute([$like, $like, $like]);
@@ -107,7 +108,7 @@ if(!$ref && $token){
 
 if(!$ref){
     http_response_code(400);
-    echo "<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Référence manquante</title><style>body{font-family:Inter,sans-serif;background:#050B16;color:#fff;padding:20px;text-align:center}.card{max-width:480px;margin:40px auto;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:24px}a{color:#D4AF37}</style></head><body><div class='card'><h2>Référence manquante</h2><p>Token: ".htmlspecialchars(substr($token,0,30))."</p><p><a href='index.php'>Accueil</a></p></div></body></html>";
+    echo "<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Référence manquante</title><style>body{font-family:Inter,sans-serif;background:#050B16;color:#fff;padding:20px;text-align:center}.card{max-width:480px;margin:40px auto;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:24px}a{color:#D4AF37}</style></head><body><div class='card'><h2>Référence manquante</h2><p>Token: \".htmlspecialchars(substr($token,0,30)).\"</p><p><a href='index.php'>Accueil</a></p></div></body></html>";
     exit;
 }
 
@@ -122,42 +123,99 @@ try{
     $tx=$stmt->fetch();
     if(!$tx){
         http_response_code(404);
-        echo "<h2>Transaction introuvable: ".htmlspecialchars($ref)."</h2><p><a href='index.php'>Accueil</a></p>";
+        echo "<h2>Transaction introuvable: \".htmlspecialchars($ref).\"</h2><p><a href='index.php'>Accueil</a></p>";
         exit;
     }
+
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS']!=='off') ? 'https' : 'https';
+    $host = $_SERVER['HTTP_HOST'] ?? 'lme-group.zaloriatech.com';
+    $vote1Base = $scheme.'://'.$host.'/vote1.php?candidat='.(int)$tx['participante_id'].'&concours_id='.(int)$tx['concours_id'].'&etape_id='.($tx['etape_id']? (int)$tx['etape_id']:'').'&receipt='.urlencode($ref);
+
+    // Si action cancel explicite, marque echoue et retour vote1
+    if($isCancelAction && $tx['etat_paiement']==='en_attente'){
+        try{
+            $pdo->prepare("UPDATE transactions_votes SET etat_paiement='echoue', message_retour=CONCAT(COALESCE(message_retour,''), ' | Annulé par user depuis checkout / Cancel Order CyberSource'), confirme_le=NOW() WHERE numero_reference=? AND etat_paiement='en_attente'")->execute([$ref]);
+            file_put_contents(__DIR__.'/maishapay.log', date('c')." CHECKOUT CANCEL action=$actionParam ref=$ref marqué echoue".PHP_EOL, FILE_APPEND);
+            $tx['etat_paiement']='echoue';
+        }catch(Exception $e){}
+    }
+
     if($tx['etat_paiement']==='confirme'){
-        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS']!=='off') ? 'https' : 'https';
-        $host = $_SERVER['HTTP_HOST'] ?? 'lme-group.zaloriatech.com';
-        $url = $scheme.'://'.$host.'/vote1.php?candidat='.(int)$tx['participante_id'].'&concours_id='.(int)$tx['concours_id'].'&etape_id='.($tx['etape_id']? (int)$tx['etape_id']:'').'&receipt='.urlencode($ref);
+        $url = $vote1Base;
         header('Location: '.$url);
         exit;
     }
     if($tx['etat_paiement']==='echoue'){
-        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS']!=='off') ? 'https' : 'https';
-        $host = $_SERVER['HTTP_HOST'] ?? 'lme-group.zaloriatech.com';
-        $url = $scheme.'://'.$host.'/vote1.php?candidat='.(int)$tx['participante_id'].'&concours_id='.(int)$tx['concours_id'].'&etape_id='.($tx['etape_id']? (int)$tx['etape_id']:'').'&receipt='.urlencode($ref).'&status=echoue';
-        echo "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Paiement échoué</title><style>body{font-family:Inter,sans-serif;background:#050B16;color:#fff;padding:20px;text-align:center}.card{max-width:480px;margin:40px auto;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:16px;padding:24px}a{color:#D4AF37}</style></head><body><div class='card'><h2>Paiement échoué</h2><p>Réf: ".htmlspecialchars($ref)."</p><p>".htmlspecialchars($tx['message_retour']??'')."</p><p><a href='$url'>Retour et réessayer</a></p></div></body></html>";
+        $url = $vote1Base.'&status=echoue';
+        file_put_contents(__DIR__.'/maishapay.log', date('c')." CHECKOUT echoue auto redirect to $url ref=$ref".PHP_EOL, FILE_APPEND);
+        header('Location: '.$url);
+        echo "<!DOCTYPE html><html><head><meta charset='utf-8'><meta http-equiv='refresh' content='1;url=".htmlspecialchars($url)."'><title>Paiement échoué</title><style>body{font-family:Inter,sans-serif;background:#050B16;color:#fff;padding:20px;text-align:center}.card{max-width:480px;margin:40px auto;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:16px;padding:24px}a{color:#D4AF37}</style></head><body><div class='card'><h2>Paiement annulé / échoué</h2><p>Réf: \".htmlspecialchars($ref).\"</p><p>\".htmlspecialchars($tx['message_retour']??'').\"</p><p>Retour vers vote1...</p><p><a href='$url'>Retour et réessayer</a></p><script>window.location='".htmlspecialchars($url)."'</script></div></body></html>";
         exit;
     }
 
-    // PRODUCTION: si payment_page_url existe (URL CyberSource retournée par Maishapay PROD), on redirige direct vers elle
-    // Ex: https://pcesarakapayprodapi01.eastus.cloudapp.azure.com/api/Payments/postpaymentrequest/2032366/CyberSource
+    // En attente - prépare URLs
     $paymentPageUrl = $tx['payment_page_url'] ?? null;
-    if($paymentPageUrl && filter_var($paymentPageUrl, FILTER_VALIDATE_URL)){
-        file_put_contents(__DIR__.'/maishapay.log', date('c')." CHECKOUT redirect direct to paymentPageUrl $paymentPageUrl ref=$ref".PHP_EOL, FILE_APPEND);
-        header('Location: '.$paymentPageUrl);
-        echo "<html><body>Redirection vers <a href='".htmlspecialchars($paymentPageUrl)."'>CyberSource</a><script>window.location='".htmlspecialchars($paymentPageUrl)."'</script></body></html>";
-        exit;
-    }
-
-    $host = $_SERVER['HTTP_HOST'] ?? 'lme-group.zaloriatech.com';
-    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS']!=='off') ? 'https' : 'https';
+    $isPaymentPage = $paymentPageUrl && filter_var($paymentPageUrl, FILTER_VALIDATE_URL);
+    $cancelUrl = $scheme.'://'.$host.'/vote1_checkout.php?ref='.urlencode($ref).'&action=cancel';
     $callbackUrl = $scheme.'://'.$host.'/vote1_callback.php?ref='.urlencode($ref);
 
-    // Log masqué
-    file_put_contents(__DIR__.'/maishapay.log', date('c')." CHECKOUT CLIENT FORM ref=$ref montant=".$tx['montant_paye']." devise=".$tx['devise']." callback=$callbackUrl".PHP_EOL, FILE_APPEND);
+    file_put_contents(__DIR__.'/maishapay.log', date('c')." CHECKOUT en_attente ref=$ref pp=".($isPaymentPage? substr($paymentPageUrl,0,80):'none').PHP_EOL, FILE_APPEND);
 
-    // Affiche page auto-submit vers Maishapay (évite CORS / Livewire not defined car on va sur domaine Maishapay)
+    // Si paymentPage existe, on affiche page intermédiaire avec 2 boutons pour éviter boucle back button
+    if($isPaymentPage){
+        ?>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Paiement carte - LME GROUP</title>
+<style>
+body{font-family:Inter,Outfit,sans-serif;background:#050B16;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px}
+.card{max-width:500px;width:100%;background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:28px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.spinner{width:44px;height:44px;border:3px solid rgba(212,175,55,.15);border-top-color:#D4AF37;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 18px}
+@keyframes spin{to{transform:rotate(360deg)}}
+h2{font-size:1.25rem;margin-bottom:8px}
+p{color:rgba(255,255,255,.6);font-size:.88rem;line-height:1.5}
+.small{font-size:.72rem;color:rgba(255,255,255,.35);margin-top:14px;word-break:break-all}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:700;font-size:.82rem;padding:12px 20px;border-radius:10px;border:none;cursor:pointer;transition:.2s;text-decoration:none;min-height:44px}
+.btn-gold{background:linear-gradient(135deg, #D4AF37, #F3D77A);color:#050B16;box-shadow:0 8px 20px rgba(212,175,55,.28)}
+.btn-gold:hover{transform:translateY(-1px)}
+.btn-outline{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#fff}
+.btn-outline:hover{background:rgba(255,255,255,.10)}
+.actions{display:flex;flex-direction:column;gap:10px;margin-top:18px}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="spinner"></div>
+  <h2>Paiement carte sécurisé</h2>
+  <p>Vous allez être redirigé vers la page sécurisée <b><?= htmlspecialchars($tx['provider_maishapay'] ?? 'Visa/Mastercard') ?></b> (CyberSource).<br>
+  Réf: <b><?= htmlspecialchars($ref) ?></b><br>
+  Montant: <b><?= htmlspecialchars($tx['montant_paye']) ?> <?= htmlspecialchars($tx['devise']) ?></b> • <?= (int)$tx['votes_accordes'] ?> votes</p>
+  <p class="small">Si vous avez cliqué "Cancel Order" sur CyberSource, cliquez ci-dessous "Annuler et retourner" pour revenir dans vote1 avec statut échoué et pouvoir réessayer.</p>
+  <div class="actions">
+    <a href="<?= htmlspecialchars($paymentPageUrl) ?>" class="btn btn-gold" id="continueBtn">💳 Continuer vers paiement sécurisé</a>
+    <a href="<?= htmlspecialchars($cancelUrl) ?>" class="btn btn-outline">❌ Annuler et retourner à vote1</a>
+    <a href="<?= htmlspecialchars($vote1Base.'&status=en_attente') ?>" class="btn btn-outline">↩ Retour à vote1 (sans annuler)</a>
+  </div>
+  <p class="small" id="countdown">Redirection auto dans 3s... <br>Ne fermez pas cette page</p>
+</div>
+<script>
+let c=3;
+const el=document.getElementById('countdown');
+const btn=document.getElementById('continueBtn');
+const url="<?= htmlspecialchars($paymentPageUrl) ?>";
+const it=setInterval(()=>{c--; if(c<=0){clearInterval(it); el.textContent='Redirection...'; window.location=url;} else {el.textContent='Redirection auto dans '+c+'s...';}}, 1000);
+setTimeout(()=>{window.location=url;}, 3000);
+</script>
+</body>
+</html>
+<?php
+        exit;
+    }
+
+    // Fallback sans paymentPageUrl: form auto-submit vers Maishapay Checkout
     ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -173,6 +231,8 @@ body{font-family:Inter,Outfit,sans-serif;background:#050B16;color:#fff;display:f
 h2{font-size:1.3rem;margin-bottom:8px}
 p{color:rgba(255,255,255,.6);font-size:.88rem;line-height:1.5}
 .small{font-size:.72rem;color:rgba(255,255,255,.35);margin-top:14px;word-break:break-all}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:700;font-size:.82rem;padding:10px 18px;border-radius:10px;border:none;cursor:pointer;transition:.2s;text-decoration:none;min-height:40px}
+.btn-outline{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#fff}
 </style>
 </head>
 <body>
@@ -184,6 +244,7 @@ p{color:rgba(255,255,255,.6);font-size:.88rem;line-height:1.5}
   Montant: <b><?= htmlspecialchars($tx['montant_paye']) ?> <?= htmlspecialchars($tx['devise']) ?></b> • <?= (int)$tx['votes_accordes'] ?> votes</p>
   <p class="small">3D Secure • Chiffré • Ne fermez pas cette page</p>
   <p class="small" id="countdown">Redirection dans 1s...</p>
+  <div style="margin-top:14px"><a href="<?= htmlspecialchars($cancelUrl) ?>" class="btn btn-outline">❌ Annuler et retourner</a></div>
 </div>
 
 <form id="maishaForm" method="POST" action="<?= htmlspecialchars(MAISHA_CHECKOUT_URL) ?>">
