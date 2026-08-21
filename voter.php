@@ -1045,7 +1045,20 @@ function startPolling(reference){
         updateStepper(4);
         updateVotesActuels();
       }else if(info.statut==='echoue'){
-        clearInterval(pollInterval); showFormBlock(); showError('err-global','Paiement refusé: '+(info.message||'annulé ou solde insuffisant.')); updateStepper(3);
+        clearInterval(pollInterval); showFormBlock();
+        // Récupère vraie raison d'échec depuis provider (solde insuffisant, etc) + ID transaction
+        let realMsg = (info.message || info.details?.message_retour || '').trim();
+        if(!realMsg) realMsg = info.details?.message_retour || 'annulé ou solde insuffisant';
+        // Nettoie doublon "Paiement refusé: Paiement refusé:"
+        realMsg = realMsg.replace(/^Paiement refusé:\s*/i, '').replace(/^Paiement échoué:\s*/i, '');
+        // Si message contient déjà ID transaction, on le garde tel quel, sinon on ajoute ref
+        const txId = info.details?.id_transaction_unipesa || info.details?.ref_transaction_unipesa || '';
+        const ref = info.details?.numero_reference || '';
+        let displayMsg = 'Paiement refusé: ' + realMsg;
+        if(txId && !realMsg.includes(txId)) displayMsg += ' (ID: ' + txId + ')';
+        if(ref && !realMsg.includes(ref) && !displayMsg.includes(ref)) displayMsg += ' [Réf: ' + ref + ']';
+        showError('err-global', displayMsg);
+        updateStepper(3);
       }else if(attempts>=max){
         clearInterval(pollInterval); showFormBlock(); showError('err-global','Temps d’attente dépassé. Si vous avez validé, vos votes seront comptés automatiquement. Réf: '+reference); updateStepper(3);
       }
