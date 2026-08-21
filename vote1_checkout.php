@@ -108,7 +108,7 @@ if(!$ref && $token){
 
 if(!$ref){
     http_response_code(400);
-    echo "<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Référence manquante</title><style>body{font-family:Inter,sans-serif;background:#050B16;color:#fff;padding:20px;text-align:center}.card{max-width:480px;margin:40px auto;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:24px}a{color:#D4AF37}</style></head><body><div class='card'><h2>Référence manquante</h2><p>Token: \".htmlspecialchars(substr($token,0,30)).\"</p><p><a href='index.php'>Accueil</a></p></div></body></html>";
+    echo "<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Référence manquante</title><style>body{font-family:Inter,sans-serif;background:#050B16;color:#fff;padding:20px;text-align:center}.card{max-width:480px;margin:40px auto;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:24px}a{color:#D4AF37}</style></head><body><div class='card'><h2>Référence manquante</h2><p>Token: ".htmlspecialchars(substr($token,0,30))."</p><p><a href='index.php'>Accueil</a></p></div></body></html>";
     exit;
 }
 
@@ -123,7 +123,7 @@ try{
     $tx=$stmt->fetch();
     if(!$tx){
         http_response_code(404);
-        echo "<h2>Transaction introuvable: \".htmlspecialchars($ref).\"</h2><p><a href='index.php'>Accueil</a></p>";
+        echo "<h2>Transaction introuvable: ".htmlspecialchars($ref)."</h2><p><a href='index.php'>Accueil</a></p>";
         exit;
     }
 
@@ -149,7 +149,7 @@ try{
         $url = $vote1Base.'&status=echoue';
         file_put_contents(__DIR__.'/maishapay.log', date('c')." CHECKOUT echoue auto redirect to $url ref=$ref".PHP_EOL, FILE_APPEND);
         header('Location: '.$url);
-        echo "<!DOCTYPE html><html><head><meta charset='utf-8'><meta http-equiv='refresh' content='1;url=".htmlspecialchars($url)."'><title>Paiement échoué</title><style>body{font-family:Inter,sans-serif;background:#050B16;color:#fff;padding:20px;text-align:center}.card{max-width:480px;margin:40px auto;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:16px;padding:24px}a{color:#D4AF37}</style></head><body><div class='card'><h2>Paiement annulé / échoué</h2><p>Réf: \".htmlspecialchars($ref).\"</p><p>\".htmlspecialchars($tx['message_retour']??'').\"</p><p>Retour vers vote1...</p><p><a href='$url'>Retour et réessayer</a></p><script>window.location='".htmlspecialchars($url)."'</script></div></body></html>";
+        echo "<!DOCTYPE html><html><head><meta charset='utf-8'><meta http-equiv='refresh' content='1;url=".htmlspecialchars($url)."'><title>Paiement échoué</title><style>body{font-family:Inter,sans-serif;background:#050B16;color:#fff;padding:20px;text-align:center}.card{max-width:480px;margin:40px auto;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:16px;padding:24px}a{color:#D4AF37}</style></head><body><div class='card'><h2>Paiement annulé / échoué</h2><p>Réf: ".htmlspecialchars($ref)."</p><p>".htmlspecialchars($tx['message_retour']??'')."</p><p>Retour vers vote1...</p><p><a href='$url'>Retour et réessayer</a></p><script>window.location='".htmlspecialchars($url)."'</script></div></body></html>";
         exit;
     }
 
