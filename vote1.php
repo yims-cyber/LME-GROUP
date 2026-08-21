@@ -318,6 +318,7 @@ h1 em{font-style:italic;font-weight:700;color:var(--gold-lt)}
 .receipt-row span:last-child{color:#fff;font-weight:600;text-align:right;word-break:break-all;max-width:60%}
 .receipt-row:last-child{border:none}
 .receipt-status-confirmed{color:#86efac!important;font-weight:800!important}
+.receipt-status-failed{color:#fca5a5!important;font-weight:800!important}
 .receipt-footer{padding:14px 22px;background:rgba(0,0,0,.15);border-top:1px solid rgba(255,255,255,.06);text-align:center}
 .receipt-actions{padding:18px 22px 22px;display:flex;flex-direction:column;gap:10px;background:rgba(255,255,255,.01)}
 .qr-wrap{display:flex;justify-content:center;margin:16px 0}
@@ -459,8 +460,14 @@ h1 em{font-style:italic;font-weight:700;color:var(--gold-lt)}
   <h1>Voter pour <em><?= htmlspecialchars($candidate['nom_complet']) ?></em></h1>
   <p class="subtitle">Soutenez votre candidate — Mobile Money via <b>Unipesa/Avadapay</b> ou Carte Visa / Mastercard via <b>MaishaPay Secure</b></p>
 
-  <?php if($receiptData && $receiptData['etat_paiement']==='confirme'): ?>
-    <div class="alert alert-success" style="text-align:center">✅ Paiement confirmé pour référence <b><?= htmlspecialchars($receiptData['numero_reference']) ?></b> — <?= (int)$receiptData['votes_accordes'] ?> votes ajoutés !</div>
+  <?php if($receiptData): ?>
+    <?php if($receiptData['etat_paiement']==='confirme'): ?>
+      <div class="alert alert-success" style="text-align:center">✅ Paiement confirmé pour référence <b><?= htmlspecialchars($receiptData['numero_reference']) ?></b> — <?= (int)$receiptData['votes_accordes'] ?> votes ajoutés !</div>
+    <?php elseif($receiptData['etat_paiement']==='echoue'): ?>
+      <div class="alert alert-error" style="text-align:center">❌ Paiement échoué pour référence <b><?= htmlspecialchars($receiptData['numero_reference']) ?></b> — <?= htmlspecialchars($receiptData['message_retour'] ?? 'Vérifiez vos informations') ?>. Aucun vote compté. Vous pouvez réessayer.</div>
+    <?php else: ?>
+      <div class="alert" style="text-align:center;background:rgba(234,179,8,.12);border:1px solid rgba(234,179,8,.22);color:#fde68a">⏳ Paiement en attente pour référence <b><?= htmlspecialchars($receiptData['numero_reference']) ?></b> — <?= htmlspecialchars($receiptData['message_retour'] ?? 'Vérification en cours') ?>.</div>
+    <?php endif; ?>
   <?php endif; ?>
 
   <!-- STEPPER -->
@@ -587,6 +594,7 @@ h1 em{font-style:italic;font-weight:700;color:var(--gold-lt)}
       <div class="summary-row"><span>Montant</span><span class="total" id="summary-total">—</span></div>
     </div>
 
+    <div id="globalAlert" style="display:none;margin-bottom:16px;padding:14px 16px;border-radius:12px;font-weight:600;font-size:.86rem;line-height:1.5;animation:fadeUp .24s ease"></div>
     <div class="error-msg" id="err-global" style="margin-bottom:12px"></div>
 
     <button type="button" id="payBtn" class="btn btn-gold btn--full">💳 Payer maintenant — Mobile Money</button>
@@ -620,7 +628,23 @@ h1 em{font-style:italic;font-weight:700;color:var(--gold-lt)}
           <div class="receipt-subtitle">LME GROUP • Reçu Officiel de Vote</div>
         </div>
       </div>
-      <div class="receipt-badge"><span class="receipt-dot"></span> Paiement confirmé • Preuve de vote</div>
+      <?php
+        $badgeStyle = 'background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.22);color:#86efac';
+        $badgeDot = '#22c55e';
+        $badgeText = 'Paiement confirmé • Preuve de vote';
+        if($receiptData){
+          if($receiptData['etat_paiement']==='echoue'){
+            $badgeStyle='background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.22);color:#fca5a5';
+            $badgeDot='#ef4444';
+            $badgeText='Paiement échoué • Aucun vote compté';
+          } elseif($receiptData['etat_paiement']!=='confirme'){
+            $badgeStyle='background:rgba(234,179,8,.12);border:1px solid rgba(234,179,8,.22);color:#fde68a';
+            $badgeDot='#eab308';
+            $badgeText='Paiement en attente • Vérification en cours';
+          }
+        }
+      ?>
+      <div id="rc-badge" class="receipt-badge" style="<?= $badgeStyle ?>"><span class="receipt-dot" style="background:<?= $badgeDot ?>"></span> <span id="rc-badge-text"><?= $badgeText ?></span></div>
     </div>
 
     <div class="receipt-candidate">
@@ -852,11 +876,33 @@ document.getElementById('email_card')?.addEventListener('input', ()=>{ hideError
 document.getElementById('customer_name')?.addEventListener('input', updateSummary);
 document.getElementById('phone_card')?.addEventListener('input', updateSummary);
 
-function showError(id,msg){ const el=document.getElementById(id); if(msg) el.textContent=msg; el.classList.add('show'); }
+function showError(id,msg){ const el=document.getElementById(id); if(!el) return; if(msg) el.textContent=msg; el.classList.add('show'); 
+  // aussi affiche globalAlert stylé visible mobile
+  if(id==='err-global' || id==='err-offre' || id==='err-telephone' || id==='err-email-card'){
+    showGlobalAlert(msg || el.textContent, 'error');
+  }
+}
 function hideError(id){ const el=document.getElementById(id); if(el) el.classList.remove('show'); }
+function showGlobalAlert(message, type='error'){
+  const ga=document.getElementById('globalAlert');
+  if(!ga) return;
+  ga.textContent=message;
+  ga.style.display='block';
+  if(type==='error'){
+    ga.style.background='rgba(239,68,68,.12)'; ga.style.border='1px solid rgba(239,68,68,.28)'; ga.style.color='#fca5a5';
+  } else if(type==='success'){
+    ga.style.background='rgba(34,197,94,.12)'; ga.style.border='1px solid rgba(34,197,94,.24)'; ga.style.color='#86efac';
+  } else {
+    ga.style.background='rgba(234,179,8,.12)'; ga.style.border='1px solid rgba(234,179,8,.22)'; ga.style.color='#fde68a';
+  }
+  ga.scrollIntoView({behavior:'smooth', block:'center'});
+  // auto hide après 8s pour erreur? non, on garde
+}
+function hideGlobalAlert(){ const ga=document.getElementById('globalAlert'); if(ga){ ga.style.display='none'; ga.textContent=''; } }
+
 function hideAllBlocks(){ formCard.style.display='none'; loadingBlock.classList.remove('show'); receiptBlock.classList.remove('show'); }
-function showFormBlock(){ hideAllBlocks(); formCard.style.display='block'; payBtn.disabled=false; }
-function showLoading(msg,sub){ hideAllBlocks(); loadingBlock.classList.add('show'); loadingMsg.textContent=msg||''; loadingSub.textContent=sub||''; const cb=document.getElementById('cancelBtn'); if(cb) cb.style.display='inline-flex'; }
+function showFormBlock(){ hideAllBlocks(); formCard.style.display='block'; payBtn.disabled=false; hideGlobalAlert(); }
+function showLoading(msg,sub){ hideAllBlocks(); loadingBlock.classList.add('show'); loadingMsg.textContent=msg||''; loadingSub.textContent=sub||''; const cb=document.getElementById('cancelBtn'); if(cb) cb.style.display='inline-flex'; hideGlobalAlert(); }
 
 document.getElementById('cancelBtn')?.addEventListener('click', async()=>{
   const ref = lastReference || RECEIPT_REF_FROM_URL;
@@ -1076,7 +1122,25 @@ function fillReceipt(ref,statut,details){
   const statutEl=document.getElementById('rc-statut');
   if(statutEl){
     statutEl.textContent=statutLabel;
-    statutEl.className = statutLabel==='Confirmé' ? 'receipt-status-confirmed' : '';
+    statutEl.className = statutLabel==='Confirmé' ? 'receipt-status-confirmed' : (statutLabel==='Échoué' ? 'receipt-status-failed' : '');
+  }
+  // Badge dynamique selon statut (fix incohérence PAIEMENT CONFIRMÉ + Échoué)
+  const badgeEl=document.getElementById('rc-badge');
+  const badgeTextEl=document.getElementById('rc-badge-text');
+  if(badgeEl && badgeTextEl){
+    if(statutLabel==='Confirmé'){
+      badgeEl.style.background='rgba(34,197,94,.12)'; badgeEl.style.borderColor='rgba(34,197,94,.22)'; badgeEl.style.color='#86efac';
+      badgeTextEl.textContent='Paiement confirmé • Preuve de vote';
+      badgeEl.querySelector('.receipt-dot').style.background='#22c55e';
+    } else if(statutLabel==='Échoué'){
+      badgeEl.style.background='rgba(239,68,68,.12)'; badgeEl.style.borderColor='rgba(239,68,68,.22)'; badgeEl.style.color='#fca5a5';
+      badgeTextEl.textContent='Paiement échoué • Aucun vote compté';
+      badgeEl.querySelector('.receipt-dot').style.background='#ef4444';
+    } else {
+      badgeEl.style.background='rgba(234,179,8,.12)'; badgeEl.style.borderColor='rgba(234,179,8,.22)'; badgeEl.style.color='#fde68a';
+      badgeTextEl.textContent='Paiement en attente • Vérification en cours';
+      badgeEl.querySelector('.receipt-dot').style.background='#eab308';
+    }
   }
 
   const qrContainer=document.getElementById('qrcode');
