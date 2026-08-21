@@ -433,9 +433,11 @@ if($action==='initiate_card_payment'){
 
     $reference=$lienUnique.'-CARD-'.date('YmdHis').'-'.strtoupper(substr(bin2hex(random_bytes(3)),0,6));
 
-    // On enregistre moyen_paiement = visa/mastercard pour traçabilité
-    $moyen = strtolower($cardType); // visa / mastercard
-    $pdo->prepare("INSERT INTO transactions_votes (site_id, numero_reference, concours_id, participante_id, etape_id, moyen_paiement, numero_telephone, email_votant, montant_paye, devise, votes_accordes, etat_paiement, initie_le, message_retour) VALUES (:sid,:ref,:cid,:pid,:eid,:meth,:tel,:email,:montant,:devise,:votes,:etat,NOW(),'')")
+    // FIX SECURITE + ENUM: moyen_paiement doit être dans enum('mpesa','airtel','orange','africell','carte','especes','manuel')
+    // Donc pour carte on met 'carte' et on stocke VISA/MASTERCARD dans message_retour pour traçabilité (pas dans moyen_paiement)
+    $moyen = 'carte';
+    $msgInit = $cardType.' - Maishapay Checkout - Merchant sandbox - Initié';
+    $pdo->prepare("INSERT INTO transactions_votes (site_id, numero_reference, concours_id, participante_id, etape_id, moyen_paiement, numero_telephone, email_votant, montant_paye, devise, votes_accordes, etat_paiement, initie_le, message_retour) VALUES (:sid,:ref,:cid,:pid,:eid,:meth,:tel,:email,:montant,:devise,:votes,:etat,NOW(),:msg)")
         ->execute([
             ':sid'=>$siteId,
             ':ref'=>$reference,
@@ -449,6 +451,7 @@ if($action==='initiate_card_payment'){
             ':devise'=>$devise,
             ':votes'=>$nombreVotes,
             ':etat'=>PAIEMENT_ETAT_EN_ATTENTE,
+            ':msg'=>$msgInit,
         ]);
 
     $host = $_SERVER['HTTP_HOST'] ?? 'lme-group.zaloriatech.com';
@@ -477,7 +480,11 @@ if($action==='initiate_card_payment'){
     ];
 
     $result=maishapayPost($payloadCard, 30);
-    file_put_contents(__DIR__.'/maishapay.log', date('c').' CARD REST REQ:'.json_encode($payloadCard).' RESP:'.$result['response'].' HTTP:'.$result['http_code'].PHP_EOL, FILE_APPEND);
+    // SECURITE: masque clés dans log
+    $maskedPayload = $payloadCard;
+    $maskedPayload['publicApiKey'] = substr($maskedPayload['publicApiKey'],0,10).'***MASKED***';
+    $maskedPayload['secretApiKey'] = '***MASKED***';
+    file_put_contents(__DIR__.'/maishapay.log', date('c').' CARD REST REQ:'.json_encode($maskedPayload).' RESP:'.$result['response'].' HTTP:'.$result['http_code'].PHP_EOL, FILE_APPEND);
 
     $data=json_decode($result['response'],true);
     $isAccepted = false;
@@ -498,21 +505,24 @@ if($action==='initiate_card_payment'){
         $isAccepted = true; // on force pour permettre redirection Checkout, car Checkout peut marcher même si REST dit autre chose
     }
 
+    // SECURITE: on ne retourne plus secretApiKey au client JS
+    // On retourne uniquement reference + URL vers vote1_checkout.php qui fera le POST serveur sécurisé
+    $host = $_SERVER['HTTP_HOST'] ?? 'lme-group.zaloriatech.com';
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS']!=='off') ? 'https' : 'https';
+    $checkoutRedirectUrl = $scheme.'://'.$host.'/vote1_checkout.php?ref='.urlencode($reference);
+
     echo json_encode([
         'success'=>true,
         'reference'=>$reference,
         'maisha_transaction_id'=>$data['data']['transactionId'] ?? '',
-        'paymentPage'=>$paymentPage, // peut être null en sandbox
+        'checkout_redirect_url'=>$checkoutRedirectUrl,
         'checkout'=>[
-            'url'=>MAISHA_CHECKOUT_URL,
-            'gatewayMode'=>MAISHA_GATEWAY_MODE,
-            'publicApiKey'=>MAISHA_PUBLIC_KEY,
-            'secretApiKey'=>MAISHA_SECRET_KEY,
+            // On ne expose plus secret côté client, mais on garde montant/devise pour affichage
             'montant'=>(float)$montant,
             'devise'=>$devise,
             'callbackUrl'=>$callbackUrl,
         ],
-        'message'=>'Paiement carte initié via MaishaPay. Redirection vers page sécurisée Visa/Mastercard (CyberSource 3D Secure). Merchant 000945 Sandbox.',
+        'message'=>'Paiement carte initié. Redirection sécurisée vers page carte (sans exposer clés marchand).',
         'card_type'=>$cardType,
     ]);
     exit;

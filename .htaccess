@@ -1,0 +1,24 @@
+# Sécurité LME GROUP - Protège logs et clés
+<FilesMatch "\.(log|ini|env)$">
+  Order allow,deny
+  Deny from all
+</FilesMatch>
+
+<FilesMatch "^(maishapay|unipesa|.*callback).*\.log$">
+  Order allow,deny
+  Deny from all
+</FilesMatch>
+
+# Empêche listage répertoire
+Options -Indexes
+
+# Protège .htaccess lui-même
+<Files .htaccess>
+  Order allow,deny
+  Deny from all
+</Files>
+
+# Force HTTPS pour vote1
+# RewriteEngine On
+# RewriteCond %{HTTPS} off
+# RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]

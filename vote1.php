@@ -467,7 +467,7 @@ h1 em{font-style:italic;font-weight:700;color:var(--gold-lt)}
         <h2><?= htmlspecialchars($candidate['nom_complet']) ?></h2>
         <p style="color:var(--muted);font-family:var(--font-ui);font-size:.84rem;margin-top:4px"><?= htmlspecialchars($candidate['ville_origine']??'Kinshasa') ?> • <?= htmlspecialchars($candidate['niveau_etudes']??'') ?></p>
         <?php if($etapeInfo): ?><div style="margin-top:8px;display:inline-flex;padding:5px 10px;border-radius:100px;background:rgba(34,197,94,.10);border:1px solid rgba(34,197,94,.20);color:#86efac;font-family:var(--font-ui);font-size:.66rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase">Étape: <?= htmlspecialchars($etapeInfo['numero_ordre']??$etape_id) ?> • En cours</div><?php endif; ?>
-        <div style="margin-top:8px" class="maisha-badge">🔒 Mobile via Unipesa/Avadapay • Carte Visa/Mastercard via MaishaPay Sandbox Merchant 000945 • 3D Secure</div>
+        <div style="margin-top:8px" class="maisha-badge">🔒 Paiement sécurisé • 3D Secure • Visa / Mastercard / Mobile Money</div>
       </div>
     </div>
 
@@ -529,8 +529,8 @@ h1 em{font-style:italic;font-weight:700;color:var(--gold-lt)}
       <div style="background:rgba(0,102,204,.08);border:1px solid rgba(0,102,204,.18);border-radius:12px;padding:12px 14px;margin-bottom:14px;display:flex;gap:10px;align-items:center">
         <div style="width:36px;height:36px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:18px">💳</div>
         <div style="flex:1">
-          <div style="font-family:var(--font-ui);font-size:.78rem;font-weight:700;color:#7ab8ff">Paiement sécurisé via MaishaPay + CyberSource (Visa)</div>
-          <div style="font-family:var(--font-ui);font-size:.68rem;color:var(--muted);margin-top:2px">Vous serez redirigé vers la page sécurisée MaishaPay pour saisir votre carte. 3D Secure, Visa, Mastercard, Amex, UnionPay supportés. Sandbox testé avec Merchant 000945.</div>
+          <div style="font-family:var(--font-ui);font-size:.78rem;font-weight:700;color:#7ab8ff">Paiement sécurisé par carte bancaire</div>
+          <div style="font-family:var(--font-ui);font-size:.68rem;color:var(--muted);margin-top:2px">Vous serez redirigé vers la page sécurisée pour saisir votre carte. 3D Secure, Visa, Mastercard supportés. Paiement chiffré.</div>
         </div>
       </div>
       <div class="card-type-grid" id="cardTypeGrid">
@@ -574,18 +574,11 @@ h1 em{font-style:italic;font-weight:700;color:var(--gold-lt)}
 
     <div class="error-msg" id="err-global" style="margin-bottom:12px"></div>
 
-    <button type="button" id="payBtn" class="btn btn-gold btn--full">💳 Payer maintenant — Mobile Money via Unipesa</button>
-    <p style="text-align:center;font-family:var(--font-ui);font-size:.70rem;color:var(--muted2);margin-top:10px" id="payHint">Mobile Money sécurisé via Unipesa/Avadapay • Carte Visa/Mastercard via MaishaPay Checkout • Merchant 000945 Sandbox</p>
+    <button type="button" id="payBtn" class="btn btn-gold btn--full">💳 Payer maintenant — Mobile Money</button>
+    <p style="text-align:center;font-family:var(--font-ui);font-size:.70rem;color:var(--muted2);margin-top:10px" id="payHint">Paiement sécurisé • Mobile Money • Carte bancaire 3D Secure</p>
 
-    <!-- Hidden form for Checkout redirect -->
-    <form id="maishaCheckoutForm" method="POST" action="https://marchand.maishapay.online/payment/vers1.0/merchant/checkout" style="display:none">
-      <input type="hidden" name="gatewayMode" id="ck_gatewayMode" value="0">
-      <input type="hidden" name="publicApiKey" id="ck_publicApiKey" value="">
-      <input type="hidden" name="secretApiKey" id="ck_secretApiKey" value="">
-      <input type="hidden" name="montant" id="ck_montant" value="">
-      <input type="hidden" name="devise" id="ck_devise" value="USD">
-      <input type="hidden" name="callbackUrl" id="ck_callbackUrl" value="">
-    </form>
+    <!-- Ancien form Checkout direct (exposait secret) supprimé pour sécurité. Maintenant redirection via vote1_checkout.php serveur -->
+    <form id="maishaCheckoutForm" style="display:none"></form>
   </div>
 
   <div id="loadingBlock" class="loading-state">
@@ -598,7 +591,7 @@ h1 em{font-style:italic;font-weight:700;color:var(--gold-lt)}
   <div id="receiptBlock" class="receipt-container">
     <div class="receipt-head">
       <h2>Reçu Officiel</h2>
-      <p>Miss Aurora RDC — LME GROUP • MaishaPay</p>
+      <p>Miss Aurora RDC — LME GROUP</p>
       <div class="receipt-badge"><span style="width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block"></span> Paiement confirmé • Preuve de vote</div>
     </div>
     <div class="qr-wrap" style="display:flex;flex-direction:column;align-items:center;gap:8px;margin:18px 0">
@@ -624,7 +617,7 @@ h1 em{font-style:italic;font-weight:700;color:var(--gold-lt)}
       <a href="vote1.php?candidat=<?= $candidate_id ?>&concours_id=<?= $concours_id ?>&etape_id=<?= $etape_id ?>" class="btn btn-outline">↩ Voter à nouveau</a>
       <a href="index.php#candidates" class="btn btn-outline">Voir classement</a>
     </div>
-    <p style="font-family:var(--font-ui);font-size:.68rem;color:var(--muted2);margin-top:14px;text-align:center">Conservez ce reçu comme preuve. Vérifiable avec la référence. MaishaPay Merchant 000945</p>
+    <p style="font-family:var(--font-ui);font-size:.68rem;color:var(--muted2);margin-top:14px;text-align:center">Conservez ce reçu comme preuve. Vérifiable avec la référence auprès de LME GROUP.</p>
   </div>
 
   <div class="card">
@@ -741,17 +734,17 @@ function updateSummary(){
     summaryTotal.textContent=selectedOffre.prix+' '+(selectedOffre.devise||'USD');
   }
   if(currentMethod==='mobile'){
-    summaryMethod.textContent='Mobile Money via Unipesa/Avadapay';
-    summaryOperator.textContent=currentOp?currentOp.label+' • '+currentOp.provider+' (Unipesa)':'—';
+    summaryMethod.textContent='Mobile Money';
+    summaryOperator.textContent=currentOp?currentOp.label:'—';
     summaryPhone.textContent=currentOp?prettyPhone(currentOp.national):(document.getElementById('email_mobile').value||'—');
   } else {
-    summaryMethod.textContent='Carte '+selectedCardType+' (MaishaPay Checkout - Merchant 000945)';
-    summaryOperator.textContent=selectedCardType+' • 3D Secure • Maishapay';
+    summaryMethod.textContent='Carte Bancaire';
+    summaryOperator.textContent=selectedCardType==='VISA'?'Visa':'Mastercard';
     summaryPhone.textContent=document.getElementById('email_card').value||document.getElementById('customer_name').value||'—';
   }
 }
 
-// Method tabs - Mobile = Unipesa, Carte = Maishapay
+// Method tabs - Mobile = Unipesa, Carte = Maishapay (sécurisé, sans exposer merchant)
 document.querySelectorAll('.method-btn').forEach(btn=>{
   btn.addEventListener('click',()=>{
     document.querySelectorAll('.method-btn').forEach(b=>b.classList.remove('active'));
@@ -760,11 +753,11 @@ document.querySelectorAll('.method-btn').forEach(btn=>{
     document.querySelectorAll('.method-section').forEach(s=>s.classList.remove('active'));
     document.getElementById(currentMethod==='mobile'?'mobileSection':'cardSection').classList.add('active');
     if(currentMethod==='mobile'){
-      payBtn.textContent='💳 Payer maintenant — Mobile Money via Unipesa';
-      payHint.textContent='Paiement sécurisé via Unipesa/Avadapay (Airtel/Orange/M-Pesa/Africell) • Comme voter.php original';
+      payBtn.textContent='💳 Payer maintenant — Mobile Money';
+      payHint.textContent='Paiement sécurisé Mobile Money (Airtel/Orange/M-Pesa/Africell)';
     } else {
-      payBtn.textContent='💳 Payer par carte — Visa / Mastercard via MaishaPay';
-      payHint.textContent='Redirection vers page sécurisée MaishaPay Checkout • CyberSource Visa • 3D Secure • Merchant 000945 Sandbox • Cartes uniquement Maishapay';
+      payBtn.textContent='💳 Payer par carte — Visa / Mastercard';
+      payHint.textContent='Redirection vers page sécurisée 3D Secure • Visa / Mastercard';
     }
     updateSummary();
     updateStepper(2);
@@ -885,17 +878,10 @@ payBtn.addEventListener('click', async()=>{
       if(!data.success){
         showFormBlock(); showError('err-global',data.message||'Erreur carte.'); payBtn.disabled=false; return;
       }
-      // data contains checkout form fields
-      showLoading('Redirection vers MaishaPay Checkout sécurisé…','Référence: '+data.reference+' • Vous allez saisir votre carte Visa/Mastercard sur page MaishaPay (3D Secure).');
-      // Fill hidden form and submit
-      document.getElementById('ck_gatewayMode').value=data.checkout.gatewayMode;
-      document.getElementById('ck_publicApiKey').value=data.checkout.publicApiKey;
-      document.getElementById('ck_secretApiKey').value=data.checkout.secretApiKey;
-      document.getElementById('ck_montant').value=data.checkout.montant;
-      document.getElementById('ck_devise').value=data.checkout.devise;
-      document.getElementById('ck_callbackUrl').value=data.checkout.callbackUrl;
-      // Also add transactionReference as custom? Checkout API expects only those fields, but we embed ref in callbackUrl
-      setTimeout(()=>{ document.getElementById('maishaCheckoutForm').submit(); }, 1200);
+      showLoading('Redirection sécurisée vers paiement carte…','Référence: '+data.reference+' • Vous allez saisir votre carte Visa/Mastercard sur page sécurisée 3D Secure (sans exposer clés marchand).');
+      // SECURITE: redirection vers vote1_checkout.php qui fait POST serveur avec secret masqué
+      const redirectUrl = data.checkout_redirect_url || ('vote1_checkout.php?ref='+encodeURIComponent(data.reference));
+      setTimeout(()=>{ window.location.href = redirectUrl; }, 1200);
     }catch(e){
       console.error(e);
       showFormBlock(); showError('err-global','Erreur réseau carte.'); payBtn.disabled=false;
@@ -935,12 +921,68 @@ function fillReceipt(ref,statut,details){
   document.getElementById('rc-code').textContent=CANDIDATE_CODE;
   document.getElementById('rc-votes').textContent=selectedOffre?selectedOffre.nombre_votes:(details?.votes_accordes||'—');
   document.getElementById('rc-amount').textContent=selectedOffre?selectedOffre.prix+' '+(selectedOffre.devise||'USD'):(details?.montant_paye?details.montant_paye+' '+(details.devise||'USD'):'—');
-  document.getElementById('rc-operator').textContent=details?.moyen_paiement ? details.moyen_paiement.toUpperCase() : (currentMethod==='mobile'?(currentOp?currentOp.label+' ('+currentOp.provider+')':'—'):selectedCardType+' (MaishaPay Checkout)');
-  document.getElementById('rc-phone').textContent=details?.numero_telephone ? details.numero_telephone : (currentMethod==='mobile'?(currentOp?prettyPhone(currentOp.national):'—'):(document.getElementById('email_card').value||'—'));
+  // Méthode: map enum DB vers label propre, évite (undefined)
+  let methodLabel='—';
+  if(details?.moyen_paiement){
+    const mp = (details.moyen_paiement||'').toLowerCase();
+    if(mp==='carte'){
+      // cherche VISA/MASTERCARD dans message_retour
+      const mr = (details.message_retour||'').toUpperCase();
+      if(mr.includes('VISA')) methodLabel='Carte Bancaire (Visa)';
+      else if(mr.includes('MASTER')) methodLabel='Carte Bancaire (Mastercard)';
+      else methodLabel='Carte Bancaire';
+    } else if(mp==='mpesa') methodLabel='M-Pesa';
+    else if(mp==='airtel') methodLabel='Airtel Money';
+    else if(mp==='orange') methodLabel='Orange Money';
+    else if(mp==='africell') methodLabel='Africell Money';
+    else methodLabel=mp.charAt(0).toUpperCase()+mp.slice(1);
+  } else {
+    if(currentMethod==='mobile'){
+      methodLabel=currentOp?currentOp.label:'Mobile Money';
+    } else {
+      // si on est en carte mais selectedCardType peut être undefined lors chargement receipt via URL
+      const ct = selectedCardType || (details?.message_retour && details.message_retour.toUpperCase().includes('MASTER') ? 'MASTERCARD' : 'VISA');
+      methodLabel = ct==='VISA' ? 'Carte Bancaire (Visa)' : 'Carte Bancaire (Mastercard)';
+    }
+  }
+  document.getElementById('rc-operator').textContent=methodLabel;
+  // Contact: masque partiel pour sécurité
+  let contact='—';
+  if(details?.numero_telephone){
+    const tel = details.numero_telephone;
+    // masque: montre 3 premiers et 2 derniers
+    if(tel.length>6) contact=tel.substring(0,4)+'****'+tel.substring(tel.length-2);
+    else contact=tel;
+    // si email existe aussi, priorise email masqué?
+    if(details.email_votant && details.email_votant.includes('@')){
+      const parts=details.email_votant.split('@');
+      contact=parts[0].substring(0,2)+'***@'+parts[1];
+    }
+  } else {
+    if(currentMethod==='mobile'){
+      contact=currentOp?prettyPhone(currentOp.national):'—';
+    } else {
+      const emailCard=document.getElementById('email_card')?.value;
+      if(emailCard && emailCard.includes('@')){
+        const p=emailCard.split('@');
+        contact=p[0].substring(0,2)+'***@'+p[1];
+      } else {
+        contact='—';
+      }
+    }
+  }
+  document.getElementById('rc-phone').textContent=contact;
   document.getElementById('rc-concours').textContent=CONCOURS_LABEL;
   document.getElementById('rc-etape').textContent=ETAPE_ID?('Étape '+ETAPE_ID):'Général';
   document.getElementById('rc-date').textContent=new Date().toLocaleString('fr-FR');
-  document.getElementById('rc-statut').textContent=statut;
+  // Statut: map en_attente => En attente, confirme => Confirmé
+  let statutLabel=statut;
+  if(details?.etat_paiement){
+    if(details.etat_paiement==='confirme') statutLabel='Confirmé ✔';
+    else if(details.etat_paiement==='echoue') statutLabel='Échoué';
+    else statutLabel='En attente';
+  }
+  document.getElementById('rc-statut').textContent=statutLabel;
 
   const qrContainer=document.getElementById('qrcode');
   if(qrContainer){
@@ -995,8 +1037,8 @@ async function downloadReceiptPDF(){
   doc.setFillColor(5,11,22); doc.rect(0,0,148,32,'F');
   doc.setTextColor(212,175,55); doc.setFont('helvetica','bold'); doc.setFontSize(14);
   doc.text('MISS AURORA RDC',10,14);
-  doc.setTextColor(255,255,255); doc.setFontSize(10); doc.text('Reçu Officiel de Vote - LME GROUP • MaishaPay',10,20);
-  doc.setFontSize(8); doc.setTextColor(180,180,180); doc.text('Preuve de paiement MaishaPay • Merchant 000945 • Visa/Mastercard',10,26);
+  doc.setTextColor(255,255,255); doc.setFontSize(10); doc.text('Reçu Officiel de Vote - LME GROUP',10,20);
+  doc.setFontSize(8); doc.setTextColor(180,180,180); doc.text('Preuve de paiement sécurisé',10,26);
 
   doc.setTextColor(20,20,20); doc.setFont('helvetica','normal'); doc.setFontSize(10);
   let y=42;
@@ -1014,16 +1056,15 @@ async function downloadReceiptPDF(){
   addRow('Date',date);
   addRow('Statut',statut);
   addRow('Concours',CONCOURS_LABEL);
-  addRow('Gateway','MaishaPay Sandbox - CARD/MOBILEMONEY');
 
   y+=6;
   doc.setFontSize(8); doc.setTextColor(100,100,100);
   doc.text('Conservez ce reçu comme preuve. Vérifiable avec la référence auprès de LME GROUP.',10,y);
   y+=4; doc.text('40, Av. Kasangulu, Kasa-Vubu, Kinshasa, RDC | +243 860 370 727',10,y);
   doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(5,11,22);
-  doc.text('REF: '+ref+' | MaishaPay Merchant 000945',10,y+10);
+  doc.text('REF: '+ref,10,y+10);
 
-  doc.save('recu-vote-'+ref+'-maishapay.pdf');
+  doc.save('recu-vote-'+ref+'.pdf');
 }
 
 document.querySelectorAll('.tab-btn').forEach(btn=>{
@@ -1054,19 +1095,26 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
 updateStepper(1);
 updateSummary();
 
-// Si receipt dans URL, afficher directement
+// Si receipt dans URL, afficher directement - sécurisé sans merchant data
 if(RECEIPT_REF_FROM_URL){
-  // Pré-remplir reçu si data existe
   if(RECEIPT_DATA){
     selectedOffre = {nombre_votes: RECEIPT_DATA.votes_accordes, prix: RECEIPT_DATA.montant_paye, devise: RECEIPT_DATA.devise};
-    currentOp = {label: RECEIPT_DATA.moyen_paiement, national: RECEIPT_DATA.numero_telephone};
-    fillReceipt(RECEIPT_REF_FROM_URL, RECEIPT_DATA.etat_paiement==='confirme'?'Confirmé ✔ via MaishaPay':'En attente', RECEIPT_DATA);
+    // Détecte méthode depuis DB
+    const mp = (RECEIPT_DATA.moyen_paiement||'').toLowerCase();
+    if(mp==='carte'){
+      currentMethod='card';
+      const mr=(RECEIPT_DATA.message_retour||'').toUpperCase();
+      selectedCardType = mr.includes('MASTER') ? 'MASTERCARD' : 'VISA';
+    } else {
+      currentMethod='mobile';
+      currentOp = {label: mp==='mpesa'?'M-Pesa':mp==='airtel'?'Airtel Money':mp==='orange'?'Orange Money':mp==='africell'?'Africell Money':mp, national: RECEIPT_DATA.numero_telephone};
+    }
+    fillReceipt(RECEIPT_REF_FROM_URL, RECEIPT_DATA.etat_paiement, RECEIPT_DATA);
     hideAllBlocks();
     receiptBlock.classList.add('show');
     updateStepper(4);
   } else {
-    // Sinon poll
-    showLoading('Vérification reçu '+RECEIPT_REF_FROM_URL+'…','MaishaPay');
+    showLoading('Vérification reçu '+RECEIPT_REF_FROM_URL+'…','');
     startPolling(RECEIPT_REF_FROM_URL);
   }
 }
