@@ -44,6 +44,37 @@ function logCallback($msg){
     file_put_contents(__DIR__.'/maishapay_callback.log', date('c').' '.$msg.PHP_EOL, FILE_APPEND);
 }
 
+function ensureMaishapaySchema(PDO $pdo){
+    static $done=false;
+    if($done) return;
+    $done=true;
+    try{
+        $stmt=$pdo->query("SHOW COLUMNS FROM transactions_votes LIKE 'moyen_paiement'");
+        $col=$stmt->fetch();
+        if($col && strpos($col['Type'],"'visa'")===false){
+            $pdo->exec("ALTER TABLE transactions_votes MODIFY COLUMN moyen_paiement ENUM('mpesa','airtel','orange','africell','carte','especes','manuel','visa','mastercard','maishapay_card','maishapay') NOT NULL DEFAULT 'carte'");
+        }
+    } catch(Exception $e){}
+    try{
+        $stmt=$pdo->query("SHOW COLUMNS FROM transactions_votes LIKE 'gateway_paiement'");
+        if($stmt->rowCount()==0){
+            $pdo->exec("ALTER TABLE transactions_votes ADD COLUMN gateway_paiement ENUM('unipesa','maishapay') NULL DEFAULT NULL AFTER moyen_paiement");
+        }
+    } catch(Exception $e){}
+    try{
+        $stmt=$pdo->query("SHOW COLUMNS FROM transactions_votes LIKE 'provider_maishapay'");
+        if($stmt->rowCount()==0){
+            $pdo->exec("ALTER TABLE transactions_votes ADD COLUMN provider_maishapay VARCHAR(32) NULL DEFAULT NULL AFTER gateway_paiement");
+        }
+    } catch(Exception $e){}
+    try{
+        $stmt=$pdo->query("SHOW COLUMNS FROM transactions_votes LIKE 'est_paiement_maishapay'");
+        if($stmt->rowCount()==0){
+            $pdo->exec("ALTER TABLE transactions_votes ADD COLUMN est_paiement_maishapay TINYINT(1) NULL DEFAULT NULL AFTER provider_maishapay");
+        }
+    } catch(Exception $e){}
+}
+
 session_start();
 $rawInput = file_get_contents('php://input');
 $getParams = $_GET;
@@ -226,9 +257,10 @@ if(!$reference){
     }
 }
 
-// Mise à jour DB
+// Mise à jour DB avec auto ALTER une seule fois
 try{
     $pdo=getDB();
+    ensureMaishapaySchema($pdo);
     $stmt=$pdo->prepare("SELECT * FROM transactions_votes WHERE numero_reference=? LIMIT 1");
     $stmt->execute([$reference]);
     $existing=$stmt->fetch();

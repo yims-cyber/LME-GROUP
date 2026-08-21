@@ -31,6 +31,37 @@ function getDB(): PDO {
     return $pdo;
 }
 
+function ensureMaishapaySchema(PDO $pdo){
+    static $done=false;
+    if($done) return;
+    $done=true;
+    try{
+        $stmt=$pdo->query("SHOW COLUMNS FROM transactions_votes LIKE 'moyen_paiement'");
+        $col=$stmt->fetch();
+        if($col && strpos($col['Type'],"'visa'")===false){
+            $pdo->exec("ALTER TABLE transactions_votes MODIFY COLUMN moyen_paiement ENUM('mpesa','airtel','orange','africell','carte','especes','manuel','visa','mastercard','maishapay_card','maishapay') NOT NULL DEFAULT 'carte'");
+        }
+    } catch(Exception $e){}
+    try{
+        $stmt=$pdo->query("SHOW COLUMNS FROM transactions_votes LIKE 'gateway_paiement'");
+        if($stmt->rowCount()==0){
+            $pdo->exec("ALTER TABLE transactions_votes ADD COLUMN gateway_paiement ENUM('unipesa','maishapay') NULL DEFAULT NULL AFTER moyen_paiement");
+        }
+    } catch(Exception $e){}
+    try{
+        $stmt=$pdo->query("SHOW COLUMNS FROM transactions_votes LIKE 'provider_maishapay'");
+        if($stmt->rowCount()==0){
+            $pdo->exec("ALTER TABLE transactions_votes ADD COLUMN provider_maishapay VARCHAR(32) NULL DEFAULT NULL AFTER gateway_paiement");
+        }
+    } catch(Exception $e){}
+    try{
+        $stmt=$pdo->query("SHOW COLUMNS FROM transactions_votes LIKE 'est_paiement_maishapay'");
+        if($stmt->rowCount()==0){
+            $pdo->exec("ALTER TABLE transactions_votes ADD COLUMN est_paiement_maishapay TINYINT(1) NULL DEFAULT NULL AFTER provider_maishapay");
+        }
+    } catch(Exception $e){}
+}
+
 $ref = trim($_GET['ref'] ?? $_GET['reference'] ?? '');
 $token = trim($_GET['_token'] ?? $_GET['token'] ?? '');
 
@@ -47,7 +78,7 @@ if($ref){
     }
 }
 
-// Si _token sans ref, tente session ou dernière transaction
+// Si _token sans ref, tente session ou recherche par token ou dernière transaction
 if(!$ref && $token){
     if(!empty($_SESSION['maishapay_ref'])){
         $ref = $_SESSION['maishapay_ref'];
@@ -56,9 +87,19 @@ if(!$ref && $token){
     } else {
         try{
             $pdoTmp = getDB();
-            $stmtLast = $pdoTmp->query("SELECT * FROM transactions_votes WHERE moyen_paiement IN ('carte','visa','mastercard') AND etat_paiement='en_attente' AND initie_le >= DATE_SUB(NOW(), INTERVAL 15 MINUTE) ORDER BY transaction_id DESC LIMIT 1");
-            $last = $stmtLast->fetch();
-            if($last) $ref = $last['numero_reference'];
+            ensureMaishapaySchema($pdoTmp);
+            // Cherche par token dans id/ref/message
+            $stmtT = $pdoTmp->prepare("SELECT * FROM transactions_votes WHERE ref_transaction_unipesa LIKE ? OR id_transaction_unipesa LIKE ? OR message_retour LIKE ? ORDER BY transaction_id DESC LIMIT 1");
+            $like = '%'.$token.'%';
+            $stmtT->execute([$like, $like, $like]);
+            $found = $stmtT->fetch();
+            if($found){
+                $ref = $found['numero_reference'];
+            } else {
+                $stmtLast = $pdoTmp->query("SELECT * FROM transactions_votes WHERE moyen_paiement IN ('carte','visa','mastercard') AND etat_paiement='en_attente' AND initie_le >= DATE_SUB(NOW(), INTERVAL 15 MINUTE) ORDER BY transaction_id DESC LIMIT 1");
+                $last = $stmtLast->fetch();
+                if($last) $ref = $last['numero_reference'];
+            }
         } catch(Exception $e){}
     }
     file_put_contents(__DIR__.'/maishapay.log', date('c')." CHECKOUT _token=$token fallback ref=$ref".PHP_EOL, FILE_APPEND);
@@ -75,6 +116,7 @@ $_SESSION['maishapay_last_ref'] = $ref;
 
 try{
     $pdo=getDB();
+    ensureMaishapaySchema($pdo);
     $stmt=$pdo->prepare("SELECT * FROM transactions_votes WHERE numero_reference=? LIMIT 1");
     $stmt->execute([$ref]);
     $tx=$stmt->fetch();

@@ -139,13 +139,60 @@ function maishapayPost(array $payload, int $timeout=25): array {
         CURLOPT_HTTPHEADER=>['Content-Type: application/json'],
         CURLOPT_POSTFIELDS=>json_encode($payload),
         CURLOPT_TIMEOUT=>$timeout,
-        CURLOPT_SSL_VERIFYPEER=>false, // sandbox may have cert issues
+        CURLOPT_SSL_VERIFYPEER=>false,
     ]);
     $resp=curl_exec($ch);
     $err=curl_error($ch);
     $code=curl_getinfo($ch,CURLINFO_HTTP_CODE);
     curl_close($ch);
     return ['response'=>$resp,'error'=>$err,'http_code'=>$code];
+}
+
+/* ===== AUTO ALTER SCHEMA - une seule fois au lancement, NULL par défaut pour compat autres structures ===== */
+function ensureMaishapaySchema(PDO $pdo){
+    static $done=false;
+    if($done) return;
+    $done=true;
+    try{
+        $stmt=$pdo->query("SHOW COLUMNS FROM transactions_votes LIKE 'moyen_paiement'");
+        $col=$stmt->fetch();
+        if($col){
+            $type=$col['Type'] ?? '';
+            if(strpos($type,"'visa'")===false){
+                $pdo->exec("ALTER TABLE transactions_votes MODIFY COLUMN moyen_paiement ENUM('mpesa','airtel','orange','africell','carte','especes','manuel','visa','mastercard','maishapay_card','maishapay') NOT NULL DEFAULT 'carte'");
+                file_put_contents(__DIR__.'/maishapay.log', date('c')." SCHEMA ALTER moyen_paiement ajoute visa/mastercard OK".PHP_EOL, FILE_APPEND);
+            }
+        }
+    } catch(Exception $e){
+        file_put_contents(__DIR__.'/maishapay.log', date('c')." SCHEMA moyen_paiement error: ".$e->getMessage().PHP_EOL, FILE_APPEND);
+    }
+    try{
+        $stmt=$pdo->query("SHOW COLUMNS FROM transactions_votes LIKE 'gateway_paiement'");
+        if($stmt->rowCount()==0){
+            $pdo->exec("ALTER TABLE transactions_votes ADD COLUMN gateway_paiement ENUM('unipesa','maishapay') NULL DEFAULT NULL AFTER moyen_paiement");
+            file_put_contents(__DIR__.'/maishapay.log', date('c')." SCHEMA ADD gateway_paiement NULL DEFAULT NULL OK".PHP_EOL, FILE_APPEND);
+        }
+    } catch(Exception $e){
+        file_put_contents(__DIR__.'/maishapay.log', date('c')." SCHEMA gateway_paiement error: ".$e->getMessage().PHP_EOL, FILE_APPEND);
+    }
+    try{
+        $stmt=$pdo->query("SHOW COLUMNS FROM transactions_votes LIKE 'provider_maishapay'");
+        if($stmt->rowCount()==0){
+            $pdo->exec("ALTER TABLE transactions_votes ADD COLUMN provider_maishapay VARCHAR(32) NULL DEFAULT NULL AFTER gateway_paiement");
+            file_put_contents(__DIR__.'/maishapay.log', date('c')." SCHEMA ADD provider_maishapay NULL DEFAULT NULL OK".PHP_EOL, FILE_APPEND);
+        }
+    } catch(Exception $e){
+        file_put_contents(__DIR__.'/maishapay.log', date('c')." SCHEMA provider_maishapay error: ".$e->getMessage().PHP_EOL, FILE_APPEND);
+    }
+    try{
+        $stmt=$pdo->query("SHOW COLUMNS FROM transactions_votes LIKE 'est_paiement_maishapay'");
+        if($stmt->rowCount()==0){
+            $pdo->exec("ALTER TABLE transactions_votes ADD COLUMN est_paiement_maishapay TINYINT(1) NULL DEFAULT NULL AFTER provider_maishapay");
+            file_put_contents(__DIR__.'/maishapay.log', date('c')." SCHEMA ADD est_paiement_maishapay NULL DEFAULT NULL OK".PHP_EOL, FILE_APPEND);
+        }
+    } catch(Exception $e){
+        file_put_contents(__DIR__.'/maishapay.log', date('c')." SCHEMA est_paiement_maishapay error: ".$e->getMessage().PHP_EOL, FILE_APPEND);
+    }
 }
 
 function checkConcours(PDO $pdo, int $concours_id): array {
@@ -292,6 +339,7 @@ if($action==='initiate_payment'){
     }
 
     $pdo=getDB();
+    ensureMaishapaySchema($pdo);
     $chk=checkConcours($pdo,$concoursId);
     if(!$chk['success']){ echo json_encode(['success'=>false,'message'=>$chk['message']]); exit; }
     $siteId=$chk['site_id'] ?? null;
@@ -320,9 +368,7 @@ if($action==='initiate_payment'){
 
     $reference=$lienUnique.'-'.date('YmdHis').'-'.strtoupper(substr(bin2hex(random_bytes(3)),0,6));
 
-    // Mobile Money = Unipesa/Avadapay (comme voter.php) + nouveaux champs pour analyse
-    // moyen_paiement = mpesa/airtel/orange/africell (enum d'origine)
-    // gateway_paiement = unipesa, est_paiement_maishapay=0
+    // Mobile Money = Unipesa/Avadapay + nouveaux champs NULL-safe
     try{
         $pdo->prepare("INSERT INTO transactions_votes (site_id, numero_reference, concours_id, participante_id, etape_id, moyen_paiement, gateway_paiement, provider_maishapay, est_paiement_maishapay, numero_telephone, email_votant, montant_paye, devise, votes_accordes, etat_paiement, initie_le, message_retour) VALUES (:sid,:ref,:cid,:pid,:eid,:meth,:gateway,:provider,:est_maishapay,:tel,:email,:montant,:devise,:votes,:etat,NOW(),'')")
             ->execute([
@@ -432,6 +478,7 @@ if($action==='initiate_card_payment'){
     }
 
     $pdo=getDB();
+    ensureMaishapaySchema($pdo);
     $chk=checkConcours($pdo,$concoursId);
     if(!$chk['success']){ echo json_encode(['success'=>false,'message'=>$chk['message']]); exit; }
     $siteId=$chk['site_id'] ?? null;
@@ -460,7 +507,7 @@ if($action==='initiate_card_payment'){
 
     $reference=$lienUnique.'-CARD-'.date('YmdHis').'-'.strtoupper(substr(bin2hex(random_bytes(3)),0,6));
 
-    // FIX ENUM + ANALYSE: moyen_paiement doit être dans enum élargi avec visa, mastercard
+    // AUTO ALTER déjà fait, moyen_paiement = visa/mastercard direct + champs NULL-safe
     // On met visa/mastercard direct pour analyse, plus gateway_paiement=maishapay, provider_maishapay=VISA/MASTERCARD, est_paiement_maishapay=1
     $moyenEnum = ($cardType==='MASTERCARD') ? 'mastercard' : 'visa'; // respecte nouveau enum
     $msgInit = $cardType.' - Maishapay Checkout - Initié';
