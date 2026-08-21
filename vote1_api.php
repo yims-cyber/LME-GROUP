@@ -15,10 +15,10 @@
 
 header('Content-Type: application/json; charset=utf-8');
 
-/* ===== CONFIG MAISHAPAY (SANDBOX) ===== */
-define('MAISHA_GATEWAY_MODE', 0); // 0 sandbox, 1 live
-define('MAISHA_PUBLIC_KEY', 'MP-SBPK-.UCBEROe0e1ycKqKo1$rj/iSCcdBaeZ0Fbx38fkPUGokH/F$kSXfbES$.SOl32Evud21YiMulKAc./GJhp4P0i/BzF2X2VP$k2wq$yY9byj30V.$9re1fOgo');
-define('MAISHA_SECRET_KEY', 'MP-SBSK-OA82.3h5WVFaBQEa$PyHjlk8HEc$lNJhy2w4gne.eNo.Hsx$jXCaUy/1c4qjYM$KGtc.fjb$6Baku2Sh.SWHLJO$qVxNBK0yU1mcvFE7mO1gtVEPpDXom0.X');
+/* ===== CONFIG MAISHAPAY (PRODUCTION - clés fournies par user) ===== */
+define('MAISHA_GATEWAY_MODE', 1); // 1 = LIVE production
+define('MAISHA_PUBLIC_KEY', 'MP-LIVEPK-Dcx4lX0$W5i5QieJu1bdAJt7oyW5v$5JRw.5u$VQ3.lp71x1.WyWVexI1qiSyvR1Ip$2xznuc5hQVQzmrwZO17f$7vmHOzauVIdRW$WqVu1D7vkO2WmX0IeS');
+define('MAISHA_SECRET_KEY', 'MP-LIVEPK-1yVfuv1t2v.aFrVrOXUIPdABlg2uvjn8$ylt8tFisaiUMVydYeKyQ$bBU7GO5Ef62A601E3d3corYomiahe8uW$E0vSzcl9P$VOWxiWRh1A2w$H0ISup0y$T');
 define('MAISHA_MERCHANT_ID', '000945');
 define('MAISHA_REST_URL', 'https://marchand.maishapay.online/api/payment/rest/vers1.0/merchant');
 define('MAISHA_CHECKOUT_URL', 'https://marchand.maishapay.online/payment/vers1.0/merchant/checkout');

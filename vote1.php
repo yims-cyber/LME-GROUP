@@ -1,7 +1,8 @@
 <?php
-// vote1.php — Miss Aurora RDC 2026 — Vote avec Maishapay Mobile Money + Carte Visa/Mastercard
-// Clone de voter.php + ajout paiement carte via Maishapay Checkout (sandbox keys fournies)
-// Merchant ID 000945 - Public MP-SBPK-... Secret MP-SBSK-...
+// vote1.php — Miss Aurora RDC 2026 — Vote avec Mobile Money (Unipesa) + Carte Visa/Mastercard (Maishapay PRODUCTION)
+// Clone de voter.php + ajout paiement carte via Maishapay Checkout PRODUCTION
+// PRODUCTION Keys: MP-LIVEPK-Dcx4lX0$... / MP-LIVEPK-1yVfuv1t2v... - GatewayMode 1 LIVE
+// Sécurité: secret jamais exposé côté client JS, via vote1_checkout.php serveur, logs masqués, .htaccess deny logs
 
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
@@ -294,17 +295,31 @@ h1 em{font-style:italic;font-weight:700;color:var(--gold-lt)}
 @keyframes spin{to{transform:rotate(360deg)}}
 .loading-msg{color:#fff;font-weight:600;font-size:.92rem}
 .loading-sub{color:var(--muted);font-size:.78rem;margin-top:8px;font-family:var(--font-ui)}
-.receipt-container{display:none;background:linear-gradient(180deg, #0F1F3A 0%, #071A3D 100%);border:1px solid rgba(212,175,55,.22);border-radius:20px;padding:26px;max-width:560px;margin:28px auto;box-shadow:0 24px 64px rgba(0,0,0,.32)}
-.receipt-container.show{display:block;animation:fadeUp .28s ease}
-.receipt-head{text-align:center;margin-bottom:18px}
-.receipt-head h2{font-family:var(--font-serif);font-size:1.8rem;font-weight:700}
-.receipt-head p{color:var(--muted);font-size:.82rem;margin-top:4px}
-.receipt-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:100px;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.22);color:#86efac;font-size:.70rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-top:10px}
-.receipt-details{text-align:left;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:16px;margin:18px 0}
-.receipt-row{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.06);font-family:var(--font-ui);font-size:.82rem;color:var(--muted);flex-wrap:wrap}
-.receipt-row span:last-child{color:#fff;font-weight:600;text-align:right;word-break:break-all}
+.receipt-container{display:none;background:linear-gradient(180deg, #0F1F3A 0%, #071A3D 100%);border:1px solid rgba(212,175,55,.22);border-radius:22px;padding:0;max-width:560px;margin:28px auto;box-shadow:0 24px 64px rgba(0,0,0,.32);overflow:hidden}
+.receipt-container.show{display:block;animation:fadeUp .32s ease}
+.receipt-header{background:linear-gradient(135deg, #050B16 0%, #0B1E42 100%);padding:22px 24px 16px;border-bottom:1px solid rgba(212,175,55,.18);text-align:center}
+.receipt-logo-wrap{display:flex;align-items:center;gap:14px;justify-content:center;margin-bottom:14px}
+.receipt-logo{width:48px;height:48px;object-fit:contain;border-radius:10px;background:#fff;padding:4px;border:1px solid rgba(212,175,55,.25);box-shadow:0 4px 16px rgba(0,0,0,.2)}
+.receipt-logo-fallback{width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg, #D4AF37, #F3D77A);color:#050B16;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1rem}
+.receipt-header-text{text-align:left}
+.receipt-title{font-family:var(--font-serif);font-weight:700;font-size:1.1rem;color:var(--gold-lt);letter-spacing:.04em}
+.receipt-subtitle{font-family:var(--font-ui);font-size:.72rem;color:var(--muted);margin-top:2px}
+.receipt-badge{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:100px;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.22);color:#86efac;font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.receipt-dot{width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;box-shadow:0 0 0 4px rgba(34,197,94,.15)}
+.receipt-candidate{display:flex;gap:16px;align-items:center;padding:18px 22px;background:rgba(255,255,255,.03);border-bottom:1px solid rgba(255,255,255,.06)}
+.receipt-candidate-photo{width:64px;height:64px;border-radius:14px;object-fit:cover;border:1px solid rgba(212,175,55,.22);flex-shrink:0;background:#0B1E42}
+.receipt-candidate-info{flex:1;min-width:0;text-align:left}
+.receipt-candidate-name{font-family:var(--font-serif);font-weight:700;font-size:1.15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.receipt-candidate-code{font-family:var(--font-ui);font-size:.76rem;color:var(--muted);margin-top:2px}
+.receipt-candidate-amount{font-family:var(--font-ui);font-weight:700;color:var(--gold-lt);font-size:.88rem;margin-top:4px}
+.receipt-ref-qr{font-family:var(--font-ui);font-size:.68rem;color:var(--muted);background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);padding:6px 12px;border-radius:100px;max-width:90%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.receipt-details{padding:16px 22px;background:rgba(255,255,255,.02)}
+.receipt-row{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05);font-family:var(--font-ui);font-size:.80rem;color:var(--muted)}
+.receipt-row span:last-child{color:#fff;font-weight:600;text-align:right;word-break:break-all;max-width:60%}
 .receipt-row:last-child{border:none}
-.receipt-actions{display:flex;flex-direction:column;gap:10px;margin-top:18px}
+.receipt-status-confirmed{color:#86efac!important;font-weight:800!important}
+.receipt-footer{padding:14px 22px;background:rgba(0,0,0,.15);border-top:1px solid rgba(255,255,255,.06);text-align:center}
+.receipt-actions{padding:18px 22px 22px;display:flex;flex-direction:column;gap:10px;background:rgba(255,255,255,.01)}
 .qr-wrap{display:flex;justify-content:center;margin:16px 0}
 .classement-tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
 .tab-btn{padding:8px 16px;border-radius:100px;font-family:var(--font-ui);font-size:.70rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:var(--muted);cursor:pointer;transition:.18s}
@@ -589,35 +604,60 @@ h1 em{font-style:italic;font-weight:700;color:var(--gold-lt)}
   </div>
 
   <div id="receiptBlock" class="receipt-container">
-    <div class="receipt-head">
-      <h2>Reçu Officiel</h2>
-      <p>Miss Aurora RDC — LME GROUP</p>
-      <div class="receipt-badge"><span style="width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block"></span> Paiement confirmé • Preuve de vote</div>
+    <div class="receipt-header">
+      <div class="receipt-logo-wrap">
+        <?php if($siteLogoUrl): ?>
+          <img src="<?= htmlspecialchars($siteLogoUrl) ?>" alt="Logo" class="receipt-logo" onerror="this.style.display='none'">
+        <?php else: ?>
+          <div class="receipt-logo-fallback">LME</div>
+        <?php endif; ?>
+        <div class="receipt-header-text">
+          <div class="receipt-title">MISS AURORA RDC</div>
+          <div class="receipt-subtitle">LME GROUP • Reçu Officiel de Vote</div>
+        </div>
+      </div>
+      <div class="receipt-badge"><span class="receipt-dot"></span> Paiement confirmé • Preuve de vote</div>
     </div>
-    <div class="qr-wrap" style="display:flex;flex-direction:column;align-items:center;gap:8px;margin:18px 0">
-      <div id="qrcode" style="position:relative;width:132px;height:132px;background:#fff;border-radius:14px;padding:8px;box-shadow:0 8px 24px rgba(0,0,0,.18)"></div>
-      <div style="font-family:var(--font-ui);font-size:.62rem;color:var(--muted);text-align:center;max-width:240px;word-break:break-all">Réf: <span id="qrRef" style="font-weight:700;color:#fff"></span></div>
+
+    <div class="receipt-candidate">
+      <img id="rc-photo" src="<?= getPhotoUrl($candidate['photo_officielle']) ?>?v=<?= time() ?>" alt="Candidate" class="receipt-candidate-photo">
+      <div class="receipt-candidate-info">
+        <div class="receipt-candidate-name" id="rc-cand">—</div>
+        <div class="receipt-candidate-code">N° <span id="rc-code">—</span> • <span id="rc-votes">—</span> votes</div>
+        <div class="receipt-candidate-amount" id="rc-amount">—</div>
+      </div>
     </div>
+
+    <div class="qr-wrap" style="display:flex;flex-direction:column;align-items:center;gap:10px;margin:20px 0">
+      <div id="qrcode" style="position:relative;width:148px;height:148px;background:#fff;border-radius:16px;padding:10px;box-shadow:0 12px 32px rgba(0,0,0,.22)"></div>
+      <div class="receipt-ref-qr">Réf: <span id="qrRef" style="font-weight:800;color:#F3D77A"></span></div>
+      <div style="font-family:var(--font-ui);font-size:.62rem;color:var(--muted);text-align:center">Scannez pour vérifier</div>
+    </div>
+
     <div class="receipt-details" id="receiptDetails">
       <div class="receipt-row"><span>Référence</span><span><strong id="rc-ref">—</strong></span></div>
-      <div class="receipt-row"><span>Candidate</span><span id="rc-cand">—</span></div>
-      <div class="receipt-row"><span>Code</span><span id="rc-code">—</span></div>
-      <div class="receipt-row"><span>Votes</span><span id="rc-votes">—</span></div>
-      <div class="receipt-row"><span>Montant</span><span id="rc-amount">—</span></div>
+      <div class="receipt-row"><span>Montant</span><span id="rc-amount2">—</span></div>
       <div class="receipt-row"><span>Méthode</span><span id="rc-operator">—</span></div>
       <div class="receipt-row"><span>Contact</span><span id="rc-phone">—</span></div>
+      <div class="receipt-row"><span>Date</span><span id="rc-date">—</span></div>
+      <div class="receipt-row"><span>Statut</span><span id="rc-statut" class="receipt-status-confirmed">—</span></div>
       <div class="receipt-row"><span>Concours</span><span id="rc-concours">—</span></div>
       <div class="receipt-row"><span>Étape</span><span id="rc-etape">—</span></div>
-      <div class="receipt-row"><span>Date</span><span id="rc-date">—</span></div>
-      <div class="receipt-row"><span>Statut</span><span id="rc-statut" style="color:var(--green);font-weight:700">—</span></div>
     </div>
+
+    <div class="receipt-footer">
+      <div style="font-size:.68rem;color:var(--muted);line-height:1.5">
+        Conservez ce reçu comme preuve. Vérifiable avec la référence sur <b>lme-group.zaloriatech.com/verify</b><br>
+        40, Av. Kasangulu, Kasa-Vubu, Kinshasa, RDC • +243 860 370 727
+      </div>
+    </div>
+
     <div class="receipt-actions">
       <button class="btn btn-gold" onclick="downloadReceiptPDF()">📥 Télécharger le reçu (PDF)</button>
       <button class="btn btn-outline" onclick="window.print()">🖨️ Imprimer</button>
       <a href="vote1.php?candidat=<?= $candidate_id ?>&concours_id=<?= $concours_id ?>&etape_id=<?= $etape_id ?>" class="btn btn-outline">↩ Voter à nouveau</a>
       <a href="index.php#candidates" class="btn btn-outline">Voir classement</a>
     </div>
-    <p style="font-family:var(--font-ui);font-size:.68rem;color:var(--muted2);margin-top:14px;text-align:center">Conservez ce reçu comme preuve. Vérifiable avec la référence auprès de LME GROUP.</p>
   </div>
 
   <div class="card">
@@ -914,50 +954,71 @@ function startPolling(reference){
 }
 
 function fillReceipt(ref,statut,details){
-  document.getElementById('rc-ref').textContent=ref;
+  // Données sûres, pas d'infos non fondées
+  const safeRef = ref || details?.numero_reference || '—';
+  document.getElementById('rc-ref').textContent=safeRef;
   const qrRefEl=document.getElementById('qrRef');
-  if(qrRefEl) qrRefEl.textContent=ref;
-  document.getElementById('rc-cand').textContent=CANDIDATE_NAME;
-  document.getElementById('rc-code').textContent=CANDIDATE_CODE;
-  document.getElementById('rc-votes').textContent=selectedOffre?selectedOffre.nombre_votes:(details?.votes_accordes||'—');
-  document.getElementById('rc-amount').textContent=selectedOffre?selectedOffre.prix+' '+(selectedOffre.devise||'USD'):(details?.montant_paye?details.montant_paye+' '+(details.devise||'USD'):'—');
-  // Méthode: map enum DB vers label propre, évite (undefined)
+  if(qrRefEl) qrRefEl.textContent=safeRef;
+
+  // Candidate
+  const candName = CANDIDATE_NAME || details?.nom_complet || '—';
+  const candCode = CANDIDATE_CODE || '—';
+  document.getElementById('rc-cand').textContent=candName;
+  document.getElementById('rc-code').textContent=candCode;
+
+  // Photo candidate dans reçu
+  const rcPhoto = document.getElementById('rc-photo');
+  if(rcPhoto){
+    // si details a photo? sinon garde celle du header
+    if(!rcPhoto.src || rcPhoto.src.includes('unsplash')){
+      // garde existant
+    }
+  }
+
+  const votes = selectedOffre ? selectedOffre.nombre_votes : (details?.votes_accordes || '—');
+  document.getElementById('rc-votes').textContent=votes;
+
+  const amount = selectedOffre ? selectedOffre.prix+' '+(selectedOffre.devise||'USD') : (details?.montant_paye ? details.montant_paye+' '+(details.devise||'USD') : '—');
+  const amountEl = document.getElementById('rc-amount');
+  if(amountEl) amountEl.textContent=amount;
+  const amountEl2 = document.getElementById('rc-amount2');
+  if(amountEl2) amountEl2.textContent=amount;
+
+  // Méthode: map enum DB vers label propre, évite (undefined) et évite infos non fondées
   let methodLabel='—';
   if(details?.moyen_paiement){
     const mp = (details.moyen_paiement||'').toLowerCase();
-    if(mp==='carte'){
-      // cherche VISA/MASTERCARD dans message_retour
-      const mr = (details.message_retour||'').toUpperCase();
-      if(mr.includes('VISA')) methodLabel='Carte Bancaire (Visa)';
-      else if(mr.includes('MASTER')) methodLabel='Carte Bancaire (Mastercard)';
+    if(mp==='carte' || mp==='visa' || mp==='mastercard'){
+      const mr = (details.message_retour||''+ (details.provider_maishapay||'') ).toUpperCase();
+      const prov = (details.provider_maishapay||'').toUpperCase();
+      if(prov==='MASTERCARD' || mr.includes('MASTER')) methodLabel='Carte Bancaire (Mastercard)';
+      else if(prov==='VISA' || mr.includes('VISA')) methodLabel='Carte Bancaire (Visa)';
       else methodLabel='Carte Bancaire';
     } else if(mp==='mpesa') methodLabel='M-Pesa';
     else if(mp==='airtel') methodLabel='Airtel Money';
     else if(mp==='orange') methodLabel='Orange Money';
     else if(mp==='africell') methodLabel='Africell Money';
+    else if(mp==='000000000' || mp==='') methodLabel='Carte Bancaire'; // fix ancien bug désaligné
     else methodLabel=mp.charAt(0).toUpperCase()+mp.slice(1);
   } else {
     if(currentMethod==='mobile'){
       methodLabel=currentOp?currentOp.label:'Mobile Money';
     } else {
-      // si on est en carte mais selectedCardType peut être undefined lors chargement receipt via URL
-      const ct = selectedCardType || (details?.message_retour && details.message_retour.toUpperCase().includes('MASTER') ? 'MASTERCARD' : 'VISA');
-      methodLabel = ct==='VISA' ? 'Carte Bancaire (Visa)' : 'Carte Bancaire (Mastercard)';
+      const ct = selectedCardType || (details?.provider_maishapay && details.provider_maishapay.toUpperCase().includes('MASTER') ? 'MASTERCARD' : 'VISA');
+      methodLabel = ct==='MASTERCARD' ? 'Carte Bancaire (Mastercard)' : 'Carte Bancaire (Visa)';
     }
   }
   document.getElementById('rc-operator').textContent=methodLabel;
-  // Contact: masque partiel pour sécurité
+
+  // Contact masqué pour sécurité
   let contact='—';
-  if(details?.numero_telephone){
-    const tel = details.numero_telephone;
-    // masque: montre 3 premiers et 2 derniers
+  if(details?.email_votant && details.email_votant.includes('@')){
+    const parts=details.email_votant.split('@');
+    contact=parts[0].substring(0,2)+'***@'+parts[1];
+  } else if(details?.numero_telephone && details.numero_telephone!=='000000000'){
+    const tel = details.numero_telephone.replace(/\D/g,'');
     if(tel.length>6) contact=tel.substring(0,4)+'****'+tel.substring(tel.length-2);
     else contact=tel;
-    // si email existe aussi, priorise email masqué?
-    if(details.email_votant && details.email_votant.includes('@')){
-      const parts=details.email_votant.split('@');
-      contact=parts[0].substring(0,2)+'***@'+parts[1];
-    }
   } else {
     if(currentMethod==='mobile'){
       contact=currentOp?prettyPhone(currentOp.national):'—';
@@ -966,23 +1027,34 @@ function fillReceipt(ref,statut,details){
       if(emailCard && emailCard.includes('@')){
         const p=emailCard.split('@');
         contact=p[0].substring(0,2)+'***@'+p[1];
-      } else {
-        contact='—';
       }
     }
   }
   document.getElementById('rc-phone').textContent=contact;
-  document.getElementById('rc-concours').textContent=CONCOURS_LABEL;
-  document.getElementById('rc-etape').textContent=ETAPE_ID?('Étape '+ETAPE_ID):'Général';
+
+  document.getElementById('rc-concours').textContent=CONCOURS_LABEL || 'LME GROUP';
+  document.getElementById('rc-etape').textContent=ETAPE_ID?('Étape '+ETAPE_ID):(details?.etape_id ? 'Étape '+details.etape_id : 'Général');
   document.getElementById('rc-date').textContent=new Date().toLocaleString('fr-FR');
-  // Statut: map en_attente => En attente, confirme => Confirmé
-  let statutLabel=statut;
+
+  let statutLabel='Confirmé';
   if(details?.etat_paiement){
-    if(details.etat_paiement==='confirme') statutLabel='Confirmé ✔';
+    if(details.etat_paiement==='confirme') statutLabel='Confirmé';
     else if(details.etat_paiement==='echoue') statutLabel='Échoué';
     else statutLabel='En attente';
+  } else {
+    // si statut param contient 'confirme' ou 'en_attente'
+    if(typeof statut==='string'){
+      if(statut.toLowerCase().includes('confirme')) statutLabel='Confirmé';
+      else if(statut.toLowerCase().includes('echoue')) statutLabel='Échoué';
+      else if(statut.toLowerCase().includes('attente')) statutLabel='En attente';
+      else statutLabel=statut;
+    }
   }
-  document.getElementById('rc-statut').textContent=statutLabel;
+  const statutEl=document.getElementById('rc-statut');
+  if(statutEl){
+    statutEl.textContent=statutLabel;
+    statutEl.className = statutLabel==='Confirmé' ? 'receipt-status-confirmed' : '';
+  }
 
   const qrContainer=document.getElementById('qrcode');
   if(qrContainer){
@@ -1024,45 +1096,94 @@ async function updateVotesActuels(){
 async function downloadReceiptPDF(){
   const { jsPDF } = window.jspdf;
   const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a5'});
-  const ref=document.getElementById('rc-ref').textContent;
-  const cand=document.getElementById('rc-cand').textContent;
-  const code=document.getElementById('rc-code').textContent;
-  const votes=document.getElementById('rc-votes').textContent;
-  const amount=document.getElementById('rc-amount').textContent;
-  const oper=document.getElementById('rc-operator').textContent;
-  const phone=document.getElementById('rc-phone').textContent;
-  const date=document.getElementById('rc-date').textContent;
-  const statut=document.getElementById('rc-statut').textContent;
+  const ref=document.getElementById('rc-ref').textContent || RECEIPT_REF_FROM_URL || '—';
+  const cand=document.getElementById('rc-cand').textContent || CANDIDATE_NAME || '—';
+  const code=document.getElementById('rc-code').textContent || CANDIDATE_CODE || '—';
+  const votes=document.getElementById('rc-votes').textContent || '—';
+  const amount=document.getElementById('rc-amount').textContent || document.getElementById('rc-amount2')?.textContent || '—';
+  const oper=document.getElementById('rc-operator').textContent || '—';
+  const phone=document.getElementById('rc-phone').textContent || '—';
+  const date=document.getElementById('rc-date').textContent || new Date().toLocaleString('fr-FR');
+  const statut=document.getElementById('rc-statut').textContent || 'Confirmé';
+  const concours=document.getElementById('rc-concours').textContent || CONCOURS_LABEL || 'LME GROUP';
+  const etape=document.getElementById('rc-etape').textContent || 'Général';
 
-  doc.setFillColor(5,11,22); doc.rect(0,0,148,32,'F');
-  doc.setTextColor(212,175,55); doc.setFont('helvetica','bold'); doc.setFontSize(14);
-  doc.text('MISS AURORA RDC',10,14);
-  doc.setTextColor(255,255,255); doc.setFontSize(10); doc.text('Reçu Officiel de Vote - LME GROUP',10,20);
-  doc.setFontSize(8); doc.setTextColor(180,180,180); doc.text('Preuve de paiement sécurisé',10,26);
+  // Header pro avec logo placeholder
+  doc.setFillColor(5,11,22); doc.rect(0,0,148,36,'F');
+  // Logo carré doré LME
+  doc.setFillColor(212,175,55); doc.roundedRect(10,8,14,14,2,2,'F');
+  doc.setTextColor(5,11,22); doc.setFont('helvetica','bold'); doc.setFontSize(10);
+  doc.text('LME',13,17);
+  doc.setTextColor(212,175,55); doc.setFontSize(14);
+  doc.text('MISS AURORA RDC',28,14);
+  doc.setTextColor(255,255,255); doc.setFontSize(9); doc.setFont('helvetica','normal');
+  doc.text('Reçu Officiel de Vote - '+concours,28,20);
+  doc.setFontSize(7); doc.setTextColor(180,180,180);
+  doc.text('Preuve de paiement sécurisé • Vérifiable via QR code',28,26);
+  // Ligne dorée
+  doc.setFillColor(212,175,55); doc.rect(0,36,148,1,'F');
 
-  doc.setTextColor(20,20,20); doc.setFont('helvetica','normal'); doc.setFontSize(10);
-  let y=42;
+  // Corps
+  doc.setTextColor(30,30,30);
+  let y=46;
+  doc.setFont('helvetica','bold'); doc.setFontSize(10);
+  doc.text('Détails du vote',10,y); y+=6;
+  doc.setFont('helvetica','normal'); doc.setFontSize(9);
   const addRow=(label,val)=>{
-    doc.setFont('helvetica','bold'); doc.text(label+':',10,y);
-    doc.setFont('helvetica','normal'); doc.text(String(val),45,y);
-    y+=7;
+    if(y>185){ doc.addPage(); y=15; }
+    doc.setFont('helvetica','bold'); doc.setTextColor(80,80,80); doc.text(label+':',10,y);
+    doc.setFont('helvetica','normal'); doc.setTextColor(20,20,20); 
+    const txt = String(val).substring(0,70);
+    doc.text(txt,42,y);
+    y+=6;
   };
-  addRow('Référence',ref);
-  addRow('Candidate',cand+' (N°'+code+')');
-  addRow('Votes',votes);
-  addRow('Montant',amount);
-  addRow('Méthode',oper);
-  addRow('Contact',phone);
-  addRow('Date',date);
-  addRow('Statut',statut);
-  addRow('Concours',CONCOURS_LABEL);
+  addRow('Référence', ref);
+  addRow('Candidate', cand+' (N°'+code+')');
+  addRow('Votes', votes);
+  addRow('Montant', amount);
+  addRow('Méthode', oper);
+  addRow('Contact', phone);
+  addRow('Date', date);
+  addRow('Statut', statut);
+  addRow('Étape', etape);
 
-  y+=6;
-  doc.setFontSize(8); doc.setTextColor(100,100,100);
+  // QR code depuis canvas
+  try{
+    const qrCanvas = document.querySelector('#qrcode canvas');
+    const qrImg = document.querySelector('#qrcode img');
+    let qrDataUrl=null;
+    if(qrCanvas){
+      qrDataUrl = qrCanvas.toDataURL('image/png');
+    } else if(qrImg && qrImg.src){
+      // si img, on dessine sur canvas temporaire
+      const c=document.createElement('canvas'); c.width=116; c.height=116;
+      const ctx=c.getContext('2d');
+      ctx.drawImage(qrImg,0,0,116,116);
+      qrDataUrl=c.toDataURL('image/png');
+    }
+    if(qrDataUrl){
+      if(y>130){ doc.addPage(); y=15; }
+      y+=4;
+      doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(80,80,80);
+      doc.text('QR Vérification:',10,y); y+=4;
+      doc.addImage(qrDataUrl, 'PNG', 10, y, 32, 32);
+      doc.setFontSize(6); doc.setTextColor(100,100,100);
+      doc.text('https://lme-group.zaloriatech.com/verify?ref='+ref, 46, y+6);
+      doc.text('Scannez pour vérifier ce reçu', 46, y+10);
+      y+=36;
+    }
+  }catch(e){ console.log('QR PDF error',e); }
+
+  y+=4;
+  if(y>170){ doc.addPage(); y=15; }
+  doc.setFontSize(7); doc.setTextColor(100,100,100);
+  doc.setFont('helvetica','normal');
   doc.text('Conservez ce reçu comme preuve. Vérifiable avec la référence auprès de LME GROUP.',10,y);
-  y+=4; doc.text('40, Av. Kasangulu, Kasa-Vubu, Kinshasa, RDC | +243 860 370 727',10,y);
-  doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(5,11,22);
-  doc.text('REF: '+ref,10,y+10);
+  y+=4;
+  doc.text('40, Av. Kasangulu, Kasa-Vubu, Kinshasa, RDC | +243 860 370 727',10,y);
+  y+=6;
+  doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(5,11,22);
+  doc.text('REF: '+ref+' | '+cand+' | '+votes+' votes',10,y);
 
   doc.save('recu-vote-'+ref+'.pdf');
 }
