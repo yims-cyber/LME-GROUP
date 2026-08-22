@@ -1017,11 +1017,43 @@ payBtn.addEventListener('click', async()=>{
       if(!data.success){
         showFormBlock(); showError('err-global',data.message||'Erreur carte.'); payBtn.disabled=false; return;
       }
-      showLoading('Redirection sécurisée vers paiement carte…','Référence: '+data.reference+' • Vous allez saisir votre carte Visa/Mastercard sur page sécurisée 3D Secure (sans exposer clés marchand).');
+      showLoading("Paiement carte sécurisé - onglet ouvert…","Référence: "+data.reference+" • Un onglet sécurisé vient de s'ouvrir pour saisir votre carte Visa/Mastercard (CyberSource 3D Secure). Complétez le paiement puis revenez sur cet onglet. Si l'onglet ne s'est pas ouvert, cliquez sur le lien dans le message ci-dessous.");
       lastReference = data.reference;
-      // SECURITE: redirection vers vote_checkout.php qui fait POST serveur avec secret masqué
       const redirectUrl = data.checkout_redirect_url || ('vote_checkout.php?ref='+encodeURIComponent(data.reference));
-      setTimeout(()=>{ window.location.href = redirectUrl; }, 1200);
+      // Ouvre paiement dans nouvel onglet pour garder page vote ouverte et pouvoir revenir auto vers reçu après succès/échec/cancel (fix arakapay.com)
+      const win = window.open(redirectUrl, '_blank');
+      if(!win){
+        loadingSub.innerHTML = 'Popup bloqué. <a href="'+redirectUrl+'" target="_blank" style="color:#F3D77A;text-decoration:underline">Cliquez ici pour ouvrir le paiement sécurisé</a> • Réf: '+data.reference;
+      }
+      startPolling(data.reference);
+      const cancelBtnEl = document.getElementById('cancelBtn');
+      if(cancelBtnEl){
+        cancelBtnEl.style.display='inline-flex';
+        cancelBtnEl.textContent="J'ai payé, vérifier le statut";
+        cancelBtnEl.onclick = async (e) => {
+          e.preventDefault();
+          try{
+            const fd2=new FormData(); fd2.append('action','check_payment'); fd2.append('reference',data.reference);
+            const res2=await fetch('vote_api.php',{method:'POST',body:fd2});
+            const info2=await res2.json();
+            if(info2.statut==='confirme'){
+              clearInterval(pollInterval);
+              fillReceipt(data.reference,'Confirmé ✔ via '+(info2.details?.moyen_paiement||'carte'),info2.details);
+              hideAllBlocks(); receiptBlock.classList.add('show');
+              updateStepper(4);
+              updateVotesActuels();
+            }else if(info2.statut==='echoue'){
+              clearInterval(pollInterval);
+              showFormBlock();
+              let realMsg = (info2.message || info2.details?.message_retour || 'annulé').replace(/^Paiement refusé:\s*/i,'');
+              showError('err-global','Paiement refusé: '+realMsg);
+              updateStepper(3);
+            }else{
+              showError('err-global','Toujours en attente: '+(info2.message||'Vérifiez que vous avez bien validé sur CyberSource. Réf: '+data.reference));
+            }
+          }catch(err){}
+        };
+      }
     }catch(e){
       console.error(e);
       showFormBlock(); showError('err-global','Erreur réseau carte.'); payBtn.disabled=false;
