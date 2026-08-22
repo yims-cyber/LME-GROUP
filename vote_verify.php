@@ -88,14 +88,47 @@ if($key !== VERIFY_ADMIN_KEY){
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 $refParam = trim($_GET['ref'] ?? $_POST['ref'] ?? '');
 
+// ===== Détection site_id pour filtrer juste ce site (lme-group) =====
+function detectSiteId(PDO $pdo): ?int {
+    $host = $_SERVER['HTTP_HOST'] ?? '';
+    $domain = 'zaloriatech.com';
+    $subdomain = '';
+    if (stripos($host, 'lme-group') !== false || stripos($host, 'aurora') !== false || $host==='localhost' || $host==='127.0.0.1' || filter_var(explode(':',$host)[0], FILTER_VALIDATE_IP) || strpos($host,'e2b.dev')!==false) {
+        $subdomain='lme-group';
+    } else if (preg_match('/^(.*?)\\.'.preg_quote($domain,'/').'$/', $host, $m)) {
+        $subdomain=$m[1];
+    } else { $subdomain='lme-group'; }
+    $stmt=$pdo->prepare("SELECT site_id FROM sites WHERE lien_unique=? LIMIT 1");
+    $stmt->execute([$subdomain]);
+    $row=$stmt->fetch();
+    if($row) return (int)$row['site_id'];
+    // fallback: si un seul site ou lme-group existe
+    $stmt2=$pdo->prepare("SELECT site_id FROM sites WHERE lien_unique='lme-group' LIMIT 1");
+    $stmt2->execute();
+    $row2=$stmt2->fetch();
+    if($row2) return (int)$row2['site_id'];
+    // dernier fallback: premier site
+    $stmt3=$pdo->query("SELECT site_id FROM sites LIMIT 1");
+    $row3=$stmt3->fetch();
+    return $row3 ? (int)$row3['site_id'] : null;
+}
+
 $pdo = getDB();
+$currentSiteId = detectSiteId($pdo);
+$currentSiteLien = 'lme-group';
+try{
+    $stmtLien=$pdo->prepare("SELECT lien_unique FROM sites WHERE site_id=?");
+    $stmtLien->execute([$currentSiteId]);
+    $rLien=$stmtLien->fetch();
+    if($rLien) $currentSiteLien=$rLien['lien_unique'];
+}catch(Exception $e){}
 
 // Actions POST
 $messageAction = '';
 if($action==='check_one' && $refParam){
-    // Vérifie une transaction en attente via Unipesa ou Maishapay
-    $stmt=$pdo->prepare("SELECT * FROM transactions_votes WHERE numero_reference=? LIMIT 1");
-    $stmt->execute([$refParam]);
+    // Vérifie une transaction en attente via Unipesa ou Maishapay - filtré par site_id
+    $stmt=$pdo->prepare("SELECT * FROM transactions_votes WHERE numero_reference=? AND site_id=:sid LIMIT 1");
+    $stmt->execute([$refParam, ':sid'=>$currentSiteId]);
     $tx=$stmt->fetch();
     if(!$tx){
         $messageAction = "Transaction $refParam introuvable.";
@@ -140,16 +173,17 @@ if($action==='check_one' && $refParam){
         }
     }
 } elseif($action==='mark_confirme' && $refParam){
-    $pdo->prepare("UPDATE transactions_votes SET etat_paiement='confirme', confirme_le=NOW(), message_retour=CONCAT(COALESCE(message_retour,''), ' | Confirmé manuellement via maishapay_verify.php par admin') WHERE numero_reference=?")->execute([$refParam]);
-    logVerify("MARK CONFIRME ref=$refParam par admin");
-    $messageAction = "✅ Transaction $refParam marquée CONFIRMÉE manuellement.";
+    $pdo->prepare("UPDATE transactions_votes SET etat_paiement='confirme', confirme_le=NOW(), message_retour=CONCAT(COALESCE(message_retour,''), ' | Confirmé manuellement via maishapay_verify.php par admin') WHERE numero_reference=? AND site_id=:sid")->execute([$refParam, ':sid'=>$currentSiteId]);
+    logVerify("MARK CONFIRME ref=$refParam site=$currentSiteId par admin");
+    $messageAction = "✅ Transaction $refParam (site $currentSiteLien) marquée CONFIRMÉE manuellement.";
 } elseif($action==='mark_echoue' && $refParam){
-    $pdo->prepare("UPDATE transactions_votes SET etat_paiement='echoue', confirme_le=NOW(), message_retour=CONCAT(COALESCE(message_retour,''), ' | Échoué manuellement via maishapay_verify.php par admin') WHERE numero_reference=?")->execute([$refParam]);
-    logVerify("MARK ECHOUE ref=$refParam par admin");
-    $messageAction = "✅ Transaction $refParam marquée ÉCHOUÉE manuellement.";
+    $pdo->prepare("UPDATE transactions_votes SET etat_paiement='echoue', confirme_le=NOW(), message_retour=CONCAT(COALESCE(message_retour,''), ' | Échoué manuellement via maishapay_verify.php par admin') WHERE numero_reference=? AND site_id=:sid")->execute([$refParam, ':sid'=>$currentSiteId]);
+    logVerify("MARK ECHOUE ref=$refParam site=$currentSiteId par admin");
+    $messageAction = "✅ Transaction $refParam (site $currentSiteLien) marquée ÉCHOUÉE manuellement.";
 } elseif($action==='check_all_pending'){
-    // Vérifie tous les en_attente Unipesa
-    $stmt=$pdo->query("SELECT * FROM transactions_votes WHERE etat_paiement='en_attente' AND moyen_paiement IN ('mpesa','airtel','orange','africell','vodacom') ORDER BY initie_le DESC LIMIT 50");
+    // Vérifie tous les en_attente Unipesa de CE SITE uniquement (même si page est pour carte, on garde pour debug)
+    $stmt=$pdo->prepare("SELECT * FROM transactions_votes WHERE site_id=:sid AND etat_paiement='en_attente' AND moyen_paiement IN ('mpesa','airtel','orange','africell','vodacom') ORDER BY initie_le DESC LIMIT 50");
+    $stmt->execute([':sid'=>$currentSiteId]);
     $rows=$stmt->fetchAll();
     $count=0; $updated=0;
     foreach($rows as $tx){
@@ -175,40 +209,47 @@ if($action==='check_one' && $refParam){
             }
         }
         $count++;
-        usleep(200000); // 0.2s pour ne pas spam
+        usleep(200000);
     }
-    $messageAction = "✅ Vérification bulk Unipesa: $count transactions vérifiées, $updated mises à jour.";
+    $messageAction = "✅ Vérification bulk Unipesa (site $currentSiteLien): $count transactions vérifiées, $updated mises à jour.";
     logVerify($messageAction);
 } elseif($action==='auto_echoue_timeout'){
-    // Marque echoue tous les CARD en_attente >15min sans callback (CyberSource declined sans retour)
-    $stmt=$pdo->prepare("UPDATE transactions_votes SET etat_paiement='echoue', message_retour=CONCAT(COALESCE(message_retour,''), ' | Auto echoue timeout via verify page >15min'), confirme_le=NOW() WHERE etat_paiement='en_attente' AND (moyen_paiement IN ('carte','visa','mastercard') OR gateway_paiement='maishapay') AND initie_le < DATE_SUB(NOW(), INTERVAL 15 MINUTE)");
-    $stmt->execute();
+    // Marque echoue tous les CARD en_attente >15min de CE SITE uniquement
+    $stmt=$pdo->prepare("UPDATE transactions_votes SET etat_paiement='echoue', message_retour=CONCAT(COALESCE(message_retour,''), ' | Auto echoue timeout via verify page >15min'), confirme_le=NOW() WHERE site_id=:sid AND etat_paiement='en_attente' AND (moyen_paiement IN ('carte','visa','mastercard') OR gateway_paiement='maishapay' OR provider_maishapay IN ('VISA','MASTERCARD')) AND initie_le < DATE_SUB(NOW(), INTERVAL 15 MINUTE)");
+    $stmt->execute([':sid'=>$currentSiteId]);
     $affected=$stmt->rowCount();
-    $messageAction = "✅ Auto echoue timeout: $affected transactions CARD en_attente >15min marquées échouées.";
+    $messageAction = "✅ Auto echoue timeout (site $currentSiteLien): $affected transactions CARD Visa/Mastercard en_attente >15min marquées échouées.";
     logVerify($messageAction);
 }
 
-// Liste des transactions
-$filter = $_GET['filter'] ?? 'en_attente'; // en_attente, tous, confirme, echoue, carte, mobile
+// Liste des transactions - FILTRE SITE_ID + VISA/MASTERCARD UNIQUEMENT (demande user)
+$filter = $_GET['filter'] ?? 'en_attente'; // en_attente, tous, confirme, echoue, carte
 $where = "1=1";
 $params=[];
+
+// Filtre obligatoire site_id pour n'afficher que ce site
+if($currentSiteId){
+    $where.=" AND t.site_id = :site_id";
+    $params[':site_id']=$currentSiteId;
+}
+
+// Filtre obligatoire carte visa/mastercard uniquement
+$cardCondition = "(t.moyen_paiement IN ('carte','visa','mastercard') OR t.gateway_paiement='maishapay' OR t.provider_maishapay IN ('VISA','MASTERCARD'))";
+$where.=" AND $cardCondition";
+
 if($filter==='en_attente'){
-    $where="etat_paiement='en_attente'";
+    $where.=" AND t.etat_paiement='en_attente'";
 } elseif($filter==='confirme'){
-    $where="etat_paiement='confirme'";
+    $where.=" AND t.etat_paiement='confirme'";
 } elseif($filter==='echoue'){
-    $where="etat_paiement='echoue'";
-} elseif($filter==='carte'){
-    $where="(moyen_paiement IN ('carte','visa','mastercard') OR gateway_paiement='maishapay')";
-} elseif($filter==='mobile'){
-    $where="moyen_paiement IN ('mpesa','airtel','orange','africell','vodacom')";
+    $where.=" AND t.etat_paiement='echoue'";
 } elseif($filter==='tous'){
-    $where="1=1";
+    // tous les cartes de ce site
 }
 
 $search = trim($_GET['search'] ?? '');
 if($search){
-    $where.=" AND (numero_reference LIKE :s OR numero_telephone LIKE :s OR email_votant LIKE :s OR id_transaction_unipesa LIKE :s)";
+    $where.=" AND (t.numero_reference LIKE :s OR t.numero_telephone LIKE :s OR t.email_votant LIKE :s OR t.id_transaction_unipesa LIKE :s)";
     $params[':s']="%$search%";
 }
 
@@ -216,9 +257,19 @@ $stmt=$pdo->prepare("SELECT t.*, p.nom_complet as candidate_name, p.code_partici
 $stmt->execute($params);
 $transactions=$stmt->fetchAll();
 
-$stats=$pdo->query("SELECT etat_paiement, COUNT(*) as cnt FROM transactions_votes GROUP BY etat_paiement")->fetchAll();
+// Stats filtrées par site_id + carte uniquement
+$statsWhere = "WHERE site_id = :site_id AND (moyen_paiement IN ('carte','visa','mastercard') OR gateway_paiement='maishapay' OR provider_maishapay IN ('VISA','MASTERCARD'))";
+$statsStmt=$pdo->prepare("SELECT etat_paiement, COUNT(*) as cnt FROM transactions_votes $statsWhere GROUP BY etat_paiement");
+$statsStmt->execute([':site_id'=>$currentSiteId]);
+$stats=$statsStmt->fetchAll();
 $statsMap=[]; foreach($stats as $s){ $statsMap[$s['etat_paiement']]=$s['cnt']; }
 $totalPending=$statsMap['en_attente']??0;
+
+// Stats globales pour info (optionnel)
+$statsAll=$pdo->prepare("SELECT etat_paiement, COUNT(*) as cnt FROM transactions_votes WHERE site_id = :site_id GROUP BY etat_paiement");
+$statsAll->execute([':site_id'=>$currentSiteId]);
+$statsAllMap=[]; foreach($statsAll->fetchAll() as $s){ $statsAllMap[$s['etat_paiement']]=$s['cnt']; }
+
 
 ?>
 <!DOCTYPE html>
@@ -262,8 +313,8 @@ th{color:var(--muted);font-size:.68rem;text-transform:uppercase;letter-spacing:.
 </head>
 <body>
 <div class="container">
-  <h1>🔍 Maishapay / Unipesa Verify - Admin LME GROUP</h1>
-  <p class="subtitle">Vérifie l'état réel chez Unipesa (Mobile) et Maishapay (Carte) et met à jour <code>transactions_votes</code> si en_attente. Clé: <?= htmlspecialchars(VERIFY_ADMIN_KEY) ?> | Total en_attente: <b><?= (int)$totalPending ?></b></p>
+  <h1>🔍 Maishapay Verify - Visa/Mastercard - <?= htmlspecialchars($currentSiteLien) ?> (site_id <?= (int)$currentSiteId ?>)</h1>
+  <p class="subtitle">Vérifie uniquement les paiements <b>Carte Visa/Mastercard (Maishapay)</b> pour ce site <code><?= htmlspecialchars($currentSiteLien) ?> (ID <?= (int)$currentSiteId ?>)</code> via champ <code>site_id</code>. Met à jour <code>transactions_votes</code> si en_attente. Clé: <?= htmlspecialchars(VERIFY_ADMIN_KEY) ?> | En attente carte ce site: <b><?= (int)$totalPending ?></b> | Total site: <?= ($statsAllMap['en_attente']??0)+($statsAllMap['confirme']??0)+($statsAllMap['echoue']??0) ?> (tous moyens)</p>
 
   <?php if($messageAction): ?><div class="alert alert-success"><?= htmlspecialchars($messageAction) ?></div><?php endif; ?>
 
@@ -284,12 +335,10 @@ th{color:var(--muted);font-size:.68rem;text-transform:uppercase;letter-spacing:.
 
   <div class="card">
     <div class="filters">
-      <a href="?key=<?= urlencode(VERIFY_ADMIN_KEY) ?>&filter=en_attente" class="<?= $filter==='en_attente'?'active':'' ?>">En attente (<?= $statsMap['en_attente']??0 ?>)</a>
-      <a href="?key=<?= urlencode(VERIFY_ADMIN_KEY) ?>&filter=carte" class="<?= $filter==='carte'?'active':'' ?>">Cartes</a>
-      <a href="?key=<?= urlencode(VERIFY_ADMIN_KEY) ?>&filter=mobile" class="<?= $filter==='mobile'?'active':'' ?>">Mobile Money</a>
-      <a href="?key=<?= urlencode(VERIFY_ADMIN_KEY) ?>&filter=confirme" class="<?= $filter==='confirme'?'active':'' ?>">Confirmés</a>
-      <a href="?key=<?= urlencode(VERIFY_ADMIN_KEY) ?>&filter=echoue" class="<?= $filter==='echoue'?'active':'' ?>">Échoués</a>
-      <a href="?key=<?= urlencode(VERIFY_ADMIN_KEY) ?>&filter=tous" class="<?= $filter==='tous'?'active':'' ?>">Tous</a>
+      <a href="?key=<?= urlencode(VERIFY_ADMIN_KEY) ?>&filter=en_attente" class="<?= $filter==='en_attente'?'active':'' ?>">En attente Visa/MC (<?= $statsMap['en_attente']??0 ?>)</a>
+      <a href="?key=<?= urlencode(VERIFY_ADMIN_KEY) ?>&filter=confirme" class="<?= $filter==='confirme'?'active':'' ?>">Confirmés Visa/MC (<?= $statsMap['confirme']??0 ?>)</a>
+      <a href="?key=<?= urlencode(VERIFY_ADMIN_KEY) ?>&filter=echoue" class="<?= $filter==='echoue'?'active':'' ?>">Échoués Visa/MC (<?= $statsMap['echoue']??0 ?>)</a>
+      <a href="?key=<?= urlencode(VERIFY_ADMIN_KEY) ?>&filter=tous" class="<?= $filter==='tous'?'active':'' ?>">Tous Visa/MC ce site</a>
     </div>
     <form method="GET" style="display:flex;gap:8px;margin-bottom:12px">
       <input type="hidden" name="key" value="<?= htmlspecialchars(VERIFY_ADMIN_KEY) ?>">
