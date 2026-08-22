@@ -1,8 +1,8 @@
 <?php
-// voter_checkout.php — Redirection sécurisée vers MaishaPay / CyberSource pour carte
-// FIX: Cancel Order sur https://secureacceptance.cybersource.com allait vers https://www.arakapay.com/ au lieu de voter.php
-// Solution: page intermédiaire sans auto-redirect + polling vers voter_api.php + bouton Annuler qui marque echoue + retour voter.php
-// + ouvre paiement dans nouvel onglet depuis voter.php pour garder onglet principal ouvert
+// voter_checkout.php — FORCE marchand.maishapay.online/payment/vers1.0/merchant/checkout pour PC et mobile
+// FIX: secureacceptance.cybersource.com/paymentmethods Cancel Order -> https://www.arakapay.com/ (perd retour)
+// Alors que marchand.maishapay.online/payment/vers1.0/merchant/checkout fait bien retour vers voter_callback/voter.php
+// Demande user: même lien PC/mobile = marchand.maishapay.online/payment/vers1.0/merchant/checkout
 
 session_start();
 ini_set('display_errors', 0);
@@ -92,20 +92,19 @@ try{
     }
 
     $paymentPageUrl = $tx['payment_page_url'] ?? null;
-    $isPaymentPage = $paymentPageUrl && filter_var($paymentPageUrl, FILTER_VALIDATE_URL);
     $cancelUrl = $scheme.'://'.$host.'/voter_checkout.php?ref='.urlencode($ref).'&action=cancel';
     $callbackUrl = $scheme.'://'.$host.'/voter_callback.php?ref='.urlencode($ref);
 
-    file_put_contents(__DIR__.'/maishapay.log', date('c')." CHECKOUT en_attente ref=$ref pp=".($isPaymentPage? substr($paymentPageUrl,0,80):'none').PHP_EOL, FILE_APPEND);
+    file_put_contents(__DIR__.'/maishapay.log', date('c')." CHECKOUT en_attente ref=$ref FORCE marchand.maishapay.online/checkout (uniform PC/mobile) pp=".substr($paymentPageUrl??'',0,80).PHP_EOL, FILE_APPEND);
 
-    if($isPaymentPage){
-        ?>
+    // FORCE même lien PC/mobile = marchand.maishapay.online/payment/vers1.0/merchant/checkout
+    ?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Paiement carte - LME GROUP</title>
+<title>Paiement carte - LME GROUP - Checkout Maishapay</title>
 <style>
 body{font-family:Inter,Outfit,sans-serif;background:#050B16;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px}
 .card{max-width:520px;width:100%;background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:28px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)}
@@ -125,25 +124,42 @@ p{color:rgba(255,255,255,.6);font-size:.88rem;line-height:1.5}
 <body>
 <div class="card">
   <div class="spinner"></div>
-  <h2>Paiement carte sécurisé</h2>
-  <p>Vous allez être redirigé vers la page sécurisée <b><?= htmlspecialchars($tx['provider_maishapay'] ?? 'Visa/Mastercard') ?></b> (CyberSource).<br>
+  <h2>Paiement carte sécurisé - Maishapay Checkout</h2>
+  <p>Vous allez être redirigé vers <b>https://marchand.maishapay.online/payment/vers1.0/merchant/checkout</b> (même lien PC et mobile).<br>
   Réf: <b><?= htmlspecialchars($ref) ?></b><br>
-  Montant: <b><?= htmlspecialchars($tx['montant_paye']) ?> <?= htmlspecialchars($tx['devise']) ?></b> • <?= (int)$tx['votes_accordes'] ?> votes</p>
-  <p class="small">⚠️ Si vous cliquez "Cancel Order" sur <b>secureacceptance.cybersource.com</b>, vous atterrirez sur <b>arakapay.com</b> (config CyberSource drc_proxypay). Revenez sur cet onglet et cliquez "Annuler et retourner" pour revenir dans voter.php avec la vraie raison (solde insuffisant etc).</p>
+  Montant: <b><?= htmlspecialchars($tx['montant_paye']) ?> <?= htmlspecialchars($tx['devise']) ?></b> • <?= (int)$tx['votes_accordes'] ?> votes<br>
+  <span style="color:#7ab8ff">Provider: <?= htmlspecialchars($tx['provider_maishapay'] ?? 'Visa/Mastercard') ?></span></p>
+  <p class="small">Ce lien gère bien le retour quand on clique Cancel (contrairement à secureacceptance.cybersource.com/paymentmethods qui va vers arakapay.com). La carte prend du temps pour donner le statut, polling auto en cours...</p>
   <div class="actions">
-    <a href="<?= htmlspecialchars($paymentPageUrl) ?>" class="btn btn-gold" id="continueBtn" target="_blank">💳 Continuer vers paiement sécurisé (nouvel onglet)</a>
+    <button class="btn btn-gold" id="continueBtn">💳 Continuer vers Maishapay Checkout</button>
     <a href="<?= htmlspecialchars($cancelUrl) ?>" class="btn btn-outline">❌ Annuler et retourner à voter.php</a>
     <a href="<?= htmlspecialchars($voteBase.'&status=en_attente') ?>" class="btn btn-outline">↩ Retour à voter.php (sans annuler)</a>
   </div>
-  <p class="small" id="countdown">Prêt. Cliquez Continuer. Polling auto pour retour après validation/annulation...</p>
+  <p class="small" id="countdown">Redirection auto dans 2s vers Maishapay Checkout...</p>
   <p class="small" id="pollInfo" style="margin-top:8px;color:#7ab8ff"></p>
+  <?php if($paymentPageUrl): ?><p class="small">PaymentPage stockée (non utilisée direct pour uniformiser): <?= htmlspecialchars(substr($paymentPageUrl,0,80)) ?>...</p><?php endif; ?>
 </div>
+
+<form id="maishaForm" method="POST" action="<?= htmlspecialchars(MAISHA_CHECKOUT_URL) ?>">
+  <input type="hidden" name="gatewayMode" value="<?= (int)MAISHA_GATEWAY_MODE ?>">
+  <input type="hidden" name="publicApiKey" value="<?= htmlspecialchars(MAISHA_PUBLIC_KEY) ?>">
+  <input type="hidden" name="secretApiKey" value="<?= htmlspecialchars(MAISHA_SECRET_KEY) ?>">
+  <input type="hidden" name="montant" value="<?= htmlspecialchars($tx['montant_paye']) ?>">
+  <input type="hidden" name="devise" value="<?= htmlspecialchars($tx['devise'] ?? 'USD') ?>">
+  <input type="hidden" name="callbackUrl" value="<?= htmlspecialchars($callbackUrl) ?>">
+</form>
+
 <script>
 const el=document.getElementById('countdown');
 const pollInfo=document.getElementById('pollInfo');
 const ref="<?= htmlspecialchars($ref) ?>";
 const voteBase="<?= htmlspecialchars($voteBase) ?>";
 const apiFile="voter_api.php";
+let c=2;
+const it=setInterval(()=>{c--; if(c<=0){clearInterval(it); if(el) el.textContent='Redirection vers Maishapay Checkout...'; document.getElementById('maishaForm').submit();} else {if(el) el.textContent='Redirection auto dans '+c+'s vers https://marchand.maishapay.online/payment/vers1.0/merchant/checkout';}}, 800);
+setTimeout(()=>{document.getElementById('maishaForm').submit();}, 2000);
+document.getElementById('continueBtn')?.addEventListener('click',()=>{document.getElementById('maishaForm').submit();});
+
 let pollAttempts=0;
 const pollMax=200;
 const pollInterval=setInterval(async ()=>{
@@ -154,66 +170,17 @@ const pollInterval=setInterval(async ()=>{
     const info=await res.json();
     if(pollInfo) pollInfo.textContent='Vérif '+pollAttempts+'/'+pollMax+': '+info.statut+' - '+(info.message||'').substring(0,100);
     if(info.statut==='confirme'){
-      clearInterval(pollInterval);
+      clearInterval(pollInterval); clearInterval(it);
       if(el) el.textContent='Paiement confirmé ! Redirection vers reçu...';
       window.location=voteBase;
     }else if(info.statut==='echoue'){
-      clearInterval(pollInterval);
+      clearInterval(pollInterval); clearInterval(it);
       if(el) el.textContent='Paiement échoué/annulé: '+(info.message||'').substring(0,120)+' - Retour vers vote...';
       window.location=voteBase+'&status=echoue';
     }
     if(pollAttempts>=pollMax){ clearInterval(pollInterval); if(el) el.textContent='Toujours en attente après 10min. Cliquez Annuler pour revenir avec vraie raison.'; }
   }catch(e){}
 }, 3000);
-</script>
-</body>
-</html>
-<?php
-        exit;
-    }
-    ?>
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Redirection paiement sécurisé - LME GROUP</title>
-<style>
-body{font-family:Inter,Outfit,sans-serif;background:#050B16;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px}
-.card{max-width:460px;width:100%;background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:28px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)}
-.spinner{width:44px;height:44px;border:3px solid rgba(212,175,55,.15);border-top-color:#D4AF37;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 18px}
-@keyframes spin{to{transform:rotate(360deg)}}
-h2{font-size:1.3rem;margin-bottom:8px}
-p{color:rgba(255,255,255,.6);font-size:.88rem;line-height:1.5}
-.small{font-size:.72rem;color:rgba(255,255,255,.35);margin-top:14px;word-break:break-all}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:700;font-size:.82rem;padding:10px 18px;border-radius:10px;border:none;cursor:pointer;transition:.2s;text-decoration:none;min-height:40px}
-.btn-outline{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#fff}
-</style>
-</head>
-<body>
-<div class="card">
-  <div class="spinner"></div>
-  <h2>Redirection vers paiement sécurisé</h2>
-  <p>Vous allez être redirigé vers la page sécurisée MaishaPay pour saisir votre carte <b><?= htmlspecialchars($tx['provider_maishapay'] ?? 'Visa/Mastercard') ?></b>.<br>
-  Référence: <b><?= htmlspecialchars($ref) ?></b><br>
-  Montant: <b><?= htmlspecialchars($tx['montant_paye']) ?> <?= htmlspecialchars($tx['devise']) ?></b> • <?= (int)$tx['votes_accordes'] ?> votes</p>
-  <p class="small">3D Secure • Chiffré • Ne fermez pas cette page</p>
-  <p class="small" id="countdown">Redirection dans 1s...</p>
-  <div style="margin-top:14px"><a href="<?= htmlspecialchars($cancelUrl) ?>" class="btn btn-outline">❌ Annuler et retourner</a></div>
-</div>
-<form id="maishaForm" method="POST" action="<?= htmlspecialchars(MAISHA_CHECKOUT_URL) ?>">
-  <input type="hidden" name="gatewayMode" value="<?= (int)MAISHA_GATEWAY_MODE ?>">
-  <input type="hidden" name="publicApiKey" value="<?= htmlspecialchars(MAISHA_PUBLIC_KEY) ?>">
-  <input type="hidden" name="secretApiKey" value="<?= htmlspecialchars(MAISHA_SECRET_KEY) ?>">
-  <input type="hidden" name="montant" value="<?= htmlspecialchars($tx['montant_paye']) ?>">
-  <input type="hidden" name="devise" value="<?= htmlspecialchars($tx['devise'] ?? 'USD') ?>">
-  <input type="hidden" name="callbackUrl" value="<?= htmlspecialchars($callbackUrl) ?>">
-</form>
-<script>
-let c=1;
-const el=document.getElementById('countdown');
-const it=setInterval(()=>{c--; if(c<=0){clearInterval(it); el.textContent='Redirection...'; document.getElementById('maishaForm').submit();} else {el.textContent='Redirection dans '+c+'s...';}}, 800);
-setTimeout(()=>{document.getElementById('maishaForm').submit();}, 1200);
 </script>
 </body>
 </html>

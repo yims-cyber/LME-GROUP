@@ -657,16 +657,18 @@ if($action==='initiate_card_payment'){
         $isAccepted = true;
     }
 
-    // PRODUCTION: si paymentPage URL retournée (https://.../CyberSource), on redirige direct vers elle (pas vers vote1_checkout form)
-    // Sinon fallback vers vote_checkout.php qui fait form POST
+        // FIX 2026-08-22: Toujours passer par vote_checkout.php qui POST vers https://marchand.maishapay.online/payment/vers1.0/merchant/checkout
+    // Demande user: PC et mobile doivent avoir même lien marchand.maishapay.online/payment/vers1.0/merchant/checkout
+    // Car https://secureacceptance.cybersource.com/paymentmethods + Cancel Order -> https://www.arakapay.com/ (perd retour)
+    // Alors que marchand.maishapay.online/payment/vers1.0/merchant/checkout fait bien le retour vers voter_callback/voter.php quand on clique Cancel
+    // On garde paymentPageUrl en DB pour info, mais on ne redirige plus direct vers elle pour respecter logique et éviter perte temps attente carte
     $host = $_SERVER['HTTP_HOST'] ?? 'lme-group.zaloriatech.com';
     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS']!=='off') ? 'https' : 'https';
+    // On log paymentPage mais on force checkout local
     if($paymentPage && filter_var($paymentPage, FILTER_VALIDATE_URL)){
-        $checkoutRedirectUrl = $paymentPage; // CyberSource direct
-        file_put_contents(__DIR__.'/maishapay.log', date('c')." CARD PROD paymentPage URL direct: $paymentPage ref=$reference".PHP_EOL, FILE_APPEND);
-    } else {
-        $checkoutRedirectUrl = $scheme.'://'.$host.'/vote_checkout.php?ref='.urlencode($reference);
+        file_put_contents(__DIR__.'/maishapay.log', date('c')." CARD PROD paymentPage URL stockée mais non utilisée direct (pour uniformiser PC/mobile vers Checkout): $paymentPage ref=$reference".PHP_EOL, FILE_APPEND);
     }
+    $checkoutRedirectUrl = $scheme.'://'.$host.'/vote_checkout.php?ref='.urlencode($reference);
 
     echo json_encode([
         'success'=>true,
