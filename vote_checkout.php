@@ -202,21 +202,17 @@ p{color:rgba(255,255,255,.6);font-size:.88rem;line-height:1.5}
   <p class="small" id="countdown">Redirection auto dans 3s... <br>Ne fermez pas cette page</p>
 </div>
 <script>
-let c=3;
 const el=document.getElementById('countdown');
-const btn=document.getElementById('continueBtn');
 const url="<?= htmlspecialchars($paymentPageUrl) ?>";
 const ref="<?= htmlspecialchars($ref) ?>";
 const voteBase="<?= htmlspecialchars($vote1Base) ?>";
 const apiFile="vote_api.php";
 let redirected=false;
-const it=setInterval(()=>{c--; if(c<=0){clearInterval(it); if(!redirected){el.textContent='Redirection...'; window.location=url;}} else {el.textContent='Redirection auto dans '+c+'s... (si vous avez annulé sur CyberSource, utilisez bouton Annuler ci-dessous)';}}, 1000);
-setTimeout(()=>{if(!redirected) window.location=url;}, 3000);
+if(el) el.textContent='Prêt. Cliquez Continuer pour aller sur CyberSource, ou Annuler pour revenir à voter.php avec la vraie raison d\'échec (solde insuffisant etc).';
 
-// Polling pour détecter si transaction passe en confirme/echoue pendant que user est sur CyberSource et revient via callback serveur
-// Si user a payé ou annulé sur CyberSource, Maishapay appelle voter_callback qui met à jour DB, alors on redirige auto vers vote principal
+// Polling pour détecter si transaction passe en confirme/echoue pendant que user est sur CyberSource
 let pollAttempts=0;
-const pollMax=120; // 6 minutes
+const pollMax=120;
 const pollInterval=setInterval(async ()=>{
   pollAttempts++;
   try{
@@ -224,12 +220,12 @@ const pollInterval=setInterval(async ()=>{
     const res=await fetch(apiFile,{method:'POST',body:fd});
     const info=await res.json();
     if(info.statut==='confirme'){
-      clearInterval(pollInterval); clearInterval(it);
+      clearInterval(pollInterval);
       redirected=true;
       el.textContent='Paiement confirmé ! Redirection vers reçu...';
       window.location=voteBase;
     }else if(info.statut==='echoue'){
-      clearInterval(pollInterval); clearInterval(it);
+      clearInterval(pollInterval);
       redirected=true;
       el.textContent='Paiement échoué/annulé: '+(info.message||'').substring(0,120)+' - Retour vers vote...';
       window.location=voteBase+'&status=echoue';
