@@ -127,8 +127,8 @@ try{
 $messageAction = '';
 if($action==='check_one' && $refParam){
     // Vérifie une transaction en attente via Unipesa ou Maishapay - filtré par site_id
-    $stmt=$pdo->prepare("SELECT * FROM transactions_votes WHERE numero_reference=? AND site_id=:sid LIMIT 1");
-    $stmt->execute([$refParam, ':sid'=>$currentSiteId]);
+    $stmt=$pdo->prepare("SELECT * FROM transactions_votes WHERE numero_reference=:ref AND site_id=:sid LIMIT 1");
+    $stmt->execute([':ref'=>$refParam, ':sid'=>$currentSiteId]);
     $tx=$stmt->fetch();
     if(!$tx){
         $messageAction = "Transaction $refParam introuvable.";
@@ -173,11 +173,11 @@ if($action==='check_one' && $refParam){
         }
     }
 } elseif($action==='mark_confirme' && $refParam){
-    $pdo->prepare("UPDATE transactions_votes SET etat_paiement='confirme', confirme_le=NOW(), message_retour=CONCAT(COALESCE(message_retour,''), ' | Confirmé manuellement via maishapay_verify.php par admin') WHERE numero_reference=? AND site_id=:sid")->execute([$refParam, ':sid'=>$currentSiteId]);
+    $pdo->prepare("UPDATE transactions_votes SET etat_paiement='confirme', confirme_le=NOW(), message_retour=CONCAT(COALESCE(message_retour,''), ' | Confirmé manuellement via maishapay_verify.php par admin') WHERE numero_reference=:ref AND site_id=:sid")->execute([':ref'=>$refParam, ':sid'=>$currentSiteId]);
     logVerify("MARK CONFIRME ref=$refParam site=$currentSiteId par admin");
     $messageAction = "✅ Transaction $refParam (site $currentSiteLien) marquée CONFIRMÉE manuellement.";
 } elseif($action==='mark_echoue' && $refParam){
-    $pdo->prepare("UPDATE transactions_votes SET etat_paiement='echoue', confirme_le=NOW(), message_retour=CONCAT(COALESCE(message_retour,''), ' | Échoué manuellement via maishapay_verify.php par admin') WHERE numero_reference=? AND site_id=:sid")->execute([$refParam, ':sid'=>$currentSiteId]);
+    $pdo->prepare("UPDATE transactions_votes SET etat_paiement='echoue', confirme_le=NOW(), message_retour=CONCAT(COALESCE(message_retour,''), ' | Échoué manuellement via maishapay_verify.php par admin') WHERE numero_reference=:ref AND site_id=:sid")->execute([':ref'=>$refParam, ':sid'=>$currentSiteId]);
     logVerify("MARK ECHOUE ref=$refParam site=$currentSiteId par admin");
     $messageAction = "✅ Transaction $refParam (site $currentSiteLien) marquée ÉCHOUÉE manuellement.";
 } elseif($action==='check_all_pending'){
