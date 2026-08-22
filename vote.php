@@ -1062,7 +1062,10 @@ payBtn.addEventListener('click', async()=>{
 });
 
 function startPolling(reference){
-  let attempts=0; const max=40;
+  let attempts=0; 
+  // Temps d'attente: mobile 2min (40*3s), carte 10min (200*3s) car formulaire CyberSource billing + card + 3D Secure prend plus de temps
+  const isCard = (typeof currentMethod !== 'undefined' && currentMethod==='card') || (typeof selectedCardType !== 'undefined' && reference && reference.includes('CARD'));
+  const max = isCard ? 200 : 40;
   if(pollInterval) clearInterval(pollInterval);
   pollInterval=setInterval(async()=>{
     attempts++;
@@ -1092,7 +1095,14 @@ function startPolling(reference){
         showError('err-global', displayMsg);
         updateStepper(3);
       }else if(attempts>=max){
-        clearInterval(pollInterval); showFormBlock(); showError('err-global','Temps d’attente dépassé. Si vous avez validé, vos votes seront comptés automatiquement. Réf: '+reference); updateStepper(3);
+        clearInterval(pollInterval); showFormBlock();
+        const isCardTimeout = (typeof currentMethod !== 'undefined' && currentMethod==='card') || reference.includes('CARD');
+        if(isCardTimeout){
+          showError('err-global','Temps d\'attente dépassé (10min) pour carte. Si vous avez validé sur CyberSource, vos votes seront comptés automatiquement dès que Maishapay appelle notre callback. Vérifiez aussi sur maishapay_verify.php?key=LME2026VERIFY - Réf: '+reference+' - Vous pouvez réessayer ou cliquer Annuler pour marquer échoué.');
+        } else {
+          showError('err-global','Temps d\'attente dépassé (2min) pour Mobile Money. Si vous avez validé sur téléphone, vos votes seront comptés automatiquement. Réf: '+reference);
+        }
+        updateStepper(3);
       }
     }catch(e){}
   },3000);
