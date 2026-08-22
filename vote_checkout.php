@@ -206,8 +206,39 @@ let c=3;
 const el=document.getElementById('countdown');
 const btn=document.getElementById('continueBtn');
 const url="<?= htmlspecialchars($paymentPageUrl) ?>";
-const it=setInterval(()=>{c--; if(c<=0){clearInterval(it); el.textContent='Redirection...'; window.location=url;} else {el.textContent='Redirection auto dans '+c+'s...';}}, 1000);
-setTimeout(()=>{window.location=url;}, 3000);
+const ref="<?= htmlspecialchars($ref) ?>";
+const voteBase="<?= htmlspecialchars($vote1Base) ?>";
+const apiFile="vote_api.php";
+let redirected=false;
+const it=setInterval(()=>{c--; if(c<=0){clearInterval(it); if(!redirected){el.textContent='Redirection...'; window.location=url;}} else {el.textContent='Redirection auto dans '+c+'s... (si vous avez annulé sur CyberSource, utilisez bouton Annuler ci-dessous)';}}, 1000);
+setTimeout(()=>{if(!redirected) window.location=url;}, 3000);
+
+// Polling pour détecter si transaction passe en confirme/echoue pendant que user est sur CyberSource et revient via callback serveur
+// Si user a payé ou annulé sur CyberSource, Maishapay appelle voter_callback qui met à jour DB, alors on redirige auto vers vote principal
+let pollAttempts=0;
+const pollMax=120; // 6 minutes
+const pollInterval=setInterval(async ()=>{
+  pollAttempts++;
+  try{
+    const fd=new FormData(); fd.append('action','check_payment'); fd.append('reference',ref);
+    const res=await fetch(apiFile,{method:'POST',body:fd});
+    const info=await res.json();
+    if(info.statut==='confirme'){
+      clearInterval(pollInterval); clearInterval(it);
+      redirected=true;
+      el.textContent='Paiement confirmé ! Redirection vers reçu...';
+      window.location=voteBase;
+    }else if(info.statut==='echoue'){
+      clearInterval(pollInterval); clearInterval(it);
+      redirected=true;
+      el.textContent='Paiement échoué/annulé: '+(info.message||'').substring(0,120)+' - Retour vers vote...';
+      window.location=voteBase+'&status=echoue';
+    }else if(pollAttempts>=pollMax){
+      clearInterval(pollInterval);
+      el.textContent='Toujours en attente après 6min. Si vous avez annulé sur CyberSource, cliquez Annuler.';
+    }
+  }catch(e){}
+}, 3000);
 </script>
 </body>
 </html>
